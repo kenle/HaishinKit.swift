@@ -92,6 +92,7 @@ final class VideoCodec<T: VideoCodecDelegate> {
             duration: duration
         ) { [unowned self] status, _, sampleBuffer in
             guard let sampleBuffer, status == noErr else {
+                print("[VideoCodec][encodeFrame] failedToFlame=\(status)");
                 delegate?.videoCodec(self, errorOccurred: .failedToFlame(status: status))
                 return
             }
@@ -115,6 +116,7 @@ final class VideoCodec<T: VideoCodecDelegate> {
         }
         _ = session?.decodeFrame(sampleBuffer) { [unowned self] status, _, imageBuffer, presentationTimeStamp, duration in
             guard let imageBuffer, status == noErr else {
+                print("[VideoCodec][decodeFrame] failedToFlame=\(status)");
                 self.delegate?.videoCodec(self, errorOccurred: .failedToFlame(status: status))
                 return
             }
@@ -127,6 +129,7 @@ final class VideoCodec<T: VideoCodecDelegate> {
                 )
             }
             guard let outputFormat, status == noErr else {
+                print("[VideoCodec][CMVideoFormatDescriptionCreateForImageBuffer] failedToFlame=\(status)");
                 delegate?.videoCodec(self, errorOccurred: .failedToFlame(status: status))
                 return
             }
@@ -147,6 +150,7 @@ final class VideoCodec<T: VideoCodecDelegate> {
                 sampleBufferOut: &sampleBuffer
             )
             guard let buffer = sampleBuffer, status == noErr else {
+                print("[VideoCodec][CMSampleBufferCreateForImageBuffer] failedToFlame=\(status)");
                 delegate?.videoCodec(self, errorOccurred: .failedToFlame(status: status))
                 return
             }
