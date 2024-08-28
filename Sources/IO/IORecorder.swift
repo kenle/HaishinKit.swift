@@ -246,90 +246,68 @@ public func finishWriting() {
         return adaptor
     }
 
-
-private func mergeVideos(completion: @escaping (Result<URL, Error>) -> Void) {
-    // Check if there's more than one file to merge
+func mergeVideos(outputURL: URL, completion: @escaping (Result<URL, Error>) -> Void) {
+    // Check if there's only one file, no need to merge
     guard movieFiles.count > 1 else {
-        // Only one file or no files, handle accordingly
-        if let singleFileURL = movieFiles.first {
-            // Optionally, move or copy the single file to a desired location
-            completion(.success(singleFileURL))
+        if let firstFile = movieFiles.first {
+            completion(.success(firstFile))
+            movieFiles.removeAll();
         } else {
-            // Handle the case where no files are present
-            completion(.failure(.failedToMergeFiles(error: NSError(domain: "MergeErrorDomain", code: -1, userInfo: nil))))
+            completion(.failure(NSError(domain: "MergeError", code: -1, userInfo: [NSLocalizedDescriptionKey: "No files to merge."])))
         }
-        // Clear the movieFiles array regardless of the count
-        self.movieFiles.removeAll()
         return
     }
     
-    // Continue with merging process
     let composition = AVMutableComposition()
-    let videoComposition = AVMutableVideoComposition()
-    let audioMix = AVMutableAudioMix()
-
-    var videoTracks: [AVAssetTrack] = []
-    var audioTracks: [AVAssetTrack] = []
-
-    for fileURL in movieFiles {
-        let asset = AVAsset(url: fileURL)
-        videoTracks.append(contentsOf: asset.tracks(withMediaType: .video))
-        audioTracks.append(contentsOf: asset.tracks(withMediaType: .audio))
-    }
-
-    let compositionVideoTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid)
-    let compositionAudioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)
-
-    var currentTime = CMTime.zero
-    for videoTrack in videoTracks {
-        do {
-            try compositionVideoTrack?.insertTimeRange(CMTimeRange(start: .zero, duration: videoTrack.timeRange.duration), of: videoTrack, at: currentTime)
-            currentTime = CMTimeAdd(currentTime, videoTrack.timeRange.duration)
-        } catch {
-            completion(.failure(.failedToMergeFiles(error: error)))
-            return
-        }
-    }
-
-    var audioMixInputParameters = [AVMutableAudioMixInputParameters]()
-    for audioTrack in audioTracks {
-        let inputParameters = AVMutableAudioMixInputParameters(track: audioTrack)
-        audioMixInputParameters.append(inputParameters)
-    }
-    audioMix.inputParameters = audioMixInputParameters
-
-    let outputURL = moviesDirectory.appendingPathComponent("merged").appendingPathExtension("mp4")
-    guard let exportSession = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetHighestQuality) else {
-        completion(.failure(.failedToMergeFiles(error: NSError(domain: "MergeErrorDomain", code: -1, userInfo: nil))))
+    
+    // Add video and audio tracks to the composition
+    guard let videoTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid),
+          let audioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) else {
+        completion(.failure(NSError(domain: "MergeError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create composition tracks."])))
         return
     }
-    exportSession.outputURL = outputURL
-    exportSession.outputFileType = .mp4
-    exportSession.videoComposition = videoComposition
-    exportSession.audioMix = audioMix
-
-    exportSession.exportAsynchronously {
-        switch exportSession.status {
-        case .completed:
-            // Clear the movieFiles array and delete intermediate files
-            self.movieFiles.forEach { fileURL in
-                do {
-                    try FileManager.default.removeItem(at: fileURL)
-                } catch {
-                    print("Failed to delete file at \(fileURL): \(error)")
-                }
-            }
-            self.movieFiles.removeAll()
-            completion(.success(outputURL))
-        case .failed:
-            if let error = exportSession.error {
-                completion(.failure(.failedToMergeFiles(error: error)))
-            }
-        default:
-            break
+    
+    var currentTime = CMTime.zero
+    
+    do {
+        for fileURL in movieFiles {
+            let asset = AVAsset(url: fileURL)
+            let videoAssetTrack = try asset.tracks(withMediaType: .video).first
+            let audioAssetTrack = try asset.tracks(withMediaType: .audio).first
+            
+            try videoTrack.insertTimeRange(CMTimeRange(start: .zero, duration: asset.duration), of: videoAssetTrack!, at: currentTime)
+            try audioTrack.insertTimeRange(CMTimeRange(start: .zero, duration: asset.duration), of: audioAssetTrack!, at: currentTime)
+            
+            currentTime = CMTimeAdd(currentTime, asset.duration)
         }
+        
+        // Export the composition
+        let exporter = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetHighestQuality)!
+        exporter.outputURL = outputURL
+        exporter.outputFileType = .mp4
+        exporter.shouldOptimizeForNetworkUse = true
+        
+        exporter.exportAsynchronously {
+            switch exporter.status {
+            case .completed:
+                // Remove original files
+                for fileURL in movieFiles {
+                    try? FileManager.default.removeItem(at: fileURL)
+                }
+                movieFiles.removeAll();
+                completion(.success(outputURL))
+            case .failed, .cancelled:
+                completion(.failure(exporter.error ?? NSError(domain: "MergeError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Unknown export error."])))
+            default:
+                break
+            }
+        }
+    } catch {
+        completion(.failure(error))
     }
 }
+
+
 
 }
 
@@ -378,7 +356,9 @@ public func stopRunning() {
         }
         self.finishWriting()
         self.isRunning.mutate { $0 = false }
-        self.mergeVideos { result in
+         let url = self.moviesDirectory.appendingPathComponent((UUID().uuidString)).appendingPathExtension("mp4");
+
+        self.mergeVideos(url) { result in
             switch result {
             case .success(let mergedURL):
                 print("Merged video saved at: \(mergedURL)")
