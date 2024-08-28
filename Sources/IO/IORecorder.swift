@@ -259,8 +259,11 @@ public final class IORecorder {
     }
 }
     
+    // try this as well https://stackoverflow.com/questions/60713452/swift-merge-videos-back-to-back-with-avassetexportsession
+    
     func mergeVideos(outputURL: URL, completion: @escaping (Result<URL, Error>) -> Void) {
         // Check if there's only one file, no need to merge
+        print("mergeVideos: \(movieFiles)");
         guard movieFiles.count > 1 else {
             if let firstFile = movieFiles.first {
                 completion(.success(firstFile))
@@ -284,8 +287,8 @@ public final class IORecorder {
         
         do {
             for fileURL in movieFiles {
-                printAssetFileSize(fileURL);
-                let asset = AVAsset(url: fileURL)
+                //printAssetFileSize(for: fileURL);
+                let asset = AVURLAsset(url: fileURL)
                 let videoAssetTrack = try asset.tracks(withMediaType: .video).first
                 let audioAssetTrack = try asset.tracks(withMediaType: .audio).first
                 
