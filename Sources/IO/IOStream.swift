@@ -455,11 +455,11 @@ open class IOStream: NSObject {
     }
 
     public func pauseRecording() {
-        mixer.recorder.pauseRunning()
+        mixer.recorder.pauseRunning();
     }
 
     public func resumeRecording() {
-        mixer.recorder.resumeRunning()
+        mixer.recorder.resumeRunning();
     }
 
     /// Stop recording.
