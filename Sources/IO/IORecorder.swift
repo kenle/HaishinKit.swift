@@ -71,83 +71,73 @@ public final class IORecorder {
     }()
     #endif
 
-    /// Append a sample buffer for recording.
-    public func append(_ sampleBuffer: CMSampleBuffer) {
-        guard isRunning.value else {
+public func append(_ sampleBuffer: CMSampleBuffer) {
+    guard isRunning.value else {
+        return
+    }
+
+    let mediaType: AVMediaType = (sampleBuffer.formatDescription?._mediaType == kCMMediaType_Video) ? .video : .audio
+    lockQueue.async {
+        guard
+            let writer = self.writer,
+            let input = self.makeWriterInput(mediaType, sourceFormatHint: sampleBuffer.formatDescription),
+            self.isReadyForStartWriting else {
             return
         }
-        let mediaType: AVMediaType = (sampleBuffer.formatDescription?._mediaType == kCMMediaType_Video) ? .video : .audio
-        lockQueue.async {
-            guard
-                let writer = self.writer,
-                let input = self.makeWriterInput(mediaType, sourceFormatHint: sampleBuffer.formatDescription),
-                self.isReadyForStartWriting else {
-                return
-            }
 
-            switch writer.status {
-            case .unknown:
-                writer.startWriting()
-                writer.startSession(atSourceTime: sampleBuffer.presentationTimeStamp)
+        if writer.status == .unknown {
+            writer.startWriting()
+            writer.startSession(atSourceTime: sampleBuffer.presentationTimeStamp)
+        }
+
+        if input.isReadyForMoreMediaData {
+            switch mediaType {
+            case .audio:
+                self.audioPresentationTime = sampleBuffer.presentationTimeStamp
+            case .video:
+                self.videoPresentationTime = sampleBuffer.presentationTimeStamp
             default:
                 break
             }
 
-            if input.isReadyForMoreMediaData {
-                switch mediaType {
-                case .audio:
-                    if input.append(sampleBuffer) {
-                        self.audioPresentationTime = sampleBuffer.presentationTimeStamp
-                    } else {
-                        self.delegate?.recorder(self, errorOccured: .failedToAppend(error: writer.error))
-                    }
-                case .video:
-                    if input.append(sampleBuffer) {
-                        self.videoPresentationTime = sampleBuffer.presentationTimeStamp
-                    } else {
-                        self.delegate?.recorder(self, errorOccured: .failedToAppend(error: writer.error))
-                    }
-                default:
-                    break
-                }
+            if !input.append(sampleBuffer) {
+                self.delegate?.recorder(self, errorOccured: .failedToAppend(error: writer.error))
             }
         }
     }
+}
 
-    /// Append a pixel buffer for recording.
-    public func append(_ pixelBuffer: CVPixelBuffer, withPresentationTime: CMTime) {
-        guard isRunning.value else {
+public func append(_ pixelBuffer: CVPixelBuffer, withPresentationTime: CMTime) {
+    guard isRunning.value else {
+        return
+    }
+
+    lockQueue.async {
+        if self.dimensions.width != pixelBuffer.width || self.dimensions.height != pixelBuffer.height {
+            self.dimensions = .init(width: Int32(pixelBuffer.width), height: Int32(pixelBuffer.height))
+        }
+        guard
+            let writer = self.writer,
+            let input = self.makeWriterInput(.video, sourceFormatHint: nil),
+            let adaptor = self.makePixelBufferAdaptor(input),
+            self.isReadyForStartWriting && self.videoPresentationTime.seconds < withPresentationTime.seconds else {
             return
         }
-        lockQueue.async {
-            if self.dimensions.width != pixelBuffer.width || self.dimensions.height != pixelBuffer.height {
-                self.dimensions = .init(width: Int32(pixelBuffer.width), height: Int32(pixelBuffer.height))
-            }
-            guard
-                let writer = self.writer,
-                let input = self.makeWriterInput(.video, sourceFormatHint: nil),
-                let adaptor = self.makePixelBufferAdaptor(input),
-                self.isReadyForStartWriting && self.videoPresentationTime.seconds < withPresentationTime.seconds else {
-                return
-            }
 
-            switch writer.status {
-            case .unknown:
-                writer.startWriting()
-                writer.startSession(atSourceTime: withPresentationTime)
-            default:
-                break
-            }
+        if writer.status == .unknown {
+            writer.startWriting()
+            writer.startSession(atSourceTime: withPresentationTime)
+        }
 
-            if input.isReadyForMoreMediaData {
-                if adaptor.append(pixelBuffer, withPresentationTime: withPresentationTime) {
-                    self.videoPresentationTime = withPresentationTime
-                } else {
-                    self.delegate?.recorder(self, errorOccured: .failedToAppend(error: writer.error))
-                }
+        if input.isReadyForMoreMediaData {
+            if adaptor.append(pixelBuffer, withPresentationTime: withPresentationTime) {
+                self.videoPresentationTime = withPresentationTime
+            } else {
+                self.delegate?.recorder(self, errorOccured: .failedToAppend(error: writer.error))
             }
         }
     }
+}
 
     func append(_ audioPCMBuffer: AVAudioPCMBuffer, when: AVAudioTime) {
         guard isRunning.value else {
