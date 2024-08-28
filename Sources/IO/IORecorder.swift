@@ -263,6 +263,24 @@ extension IORecorder: Running {
         }
     }
 
+    public func pauseRunning() {
+        lockQueue.async {
+            guard self.isRunning.value else {
+                return
+            }
+            self.isRunning.mutate { $0 = false}
+        }
+    }
+
+    public func resumeRunning() {
+        lockQueue.async {
+            guard !self.isRunning.value else {
+                return
+            }
+            self.isRunning.mutate { $0 = true}
+        }
+    }
+
     public func stopRunning() {
         lockQueue.async {
             guard self.isRunning.value else {
