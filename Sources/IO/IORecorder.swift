@@ -25,7 +25,7 @@ public final class IORecorder {
         /// Failed to finish writing the AVAssetWriter.
         case failedToFinishWriting(error: (any Swift.Error)?)
     }
-
+    
     /// The default output settings for an IORecorder.
     public static let defaultOutputSettings: [AVMediaType: [String: Any]] = [
         .audio: [
@@ -39,14 +39,14 @@ public final class IORecorder {
             AVVideoWidthKey: 0
         ]
     ]
-
+    
     /// Specifies the delegate.
     public weak var delegate: (any IORecorderDelegate)?
     /// Specifies the recorder settings.
     public var outputSettings: [AVMediaType: [String: Any]] = IORecorder.defaultOutputSettings
     /// The running indicies whether recording or not.
     public private(set) var isRunning: Atomic<Bool> = .init(false)
-
+    
     private let lockQueue = DispatchQueue(label: "com.haishinkit.HaishinKit.IORecorder.lock")
     private var isReadyForStartWriting: Bool {
         guard let writer = writer else {
@@ -61,18 +61,18 @@ public final class IORecorder {
     private var videoPresentationTime: CMTime = .zero
     private var dimensions: CMVideoDimensions = .init(width: 0, height: 0)
     private var movieFiles: [URL] = []
-
-
-    #if os(iOS)
+    
+    
+#if os(iOS)
     private lazy var moviesDirectory: URL = {
         URL(fileURLWithPath: NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true)[0])
     }()
-    #else
+#else
     private lazy var moviesDirectory: URL = {
         URL(fileURLWithPath: NSSearchPathForDirectoriesInDomains(.moviesDirectory, .userDomainMask, true)[0])
     }()
-    #endif
-
+#endif
+    
     /// Append a sample buffer for recording.
     public func append(_ sampleBuffer: CMSampleBuffer) {
         guard isRunning.value else {
@@ -86,7 +86,7 @@ public final class IORecorder {
                 self.isReadyForStartWriting else {
                 return
             }
-
+            
             switch writer.status {
             case .unknown:
                 writer.startWriting()
@@ -94,7 +94,7 @@ public final class IORecorder {
             default:
                 break
             }
-
+            
             if input.isReadyForMoreMediaData {
                 switch mediaType {
                 case .audio:
@@ -115,7 +115,7 @@ public final class IORecorder {
             }
         }
     }
-
+    
     /// Append a pixel buffer for recording.
     public func append(_ pixelBuffer: CVPixelBuffer, withPresentationTime: CMTime) {
         guard isRunning.value else {
@@ -132,7 +132,7 @@ public final class IORecorder {
                 self.isReadyForStartWriting && self.videoPresentationTime.seconds < withPresentationTime.seconds else {
                 return
             }
-
+            
             switch writer.status {
             case .unknown:
                 writer.startWriting()
@@ -140,7 +140,7 @@ public final class IORecorder {
             default:
                 break
             }
-
+            
             if input.isReadyForMoreMediaData {
                 if adaptor.append(pixelBuffer, withPresentationTime: withPresentationTime) {
                     self.videoPresentationTime = withPresentationTime
@@ -150,7 +150,7 @@ public final class IORecorder {
             }
         }
     }
-
+    
     func append(_ audioPCMBuffer: AVAudioPCMBuffer, when: AVAudioTime) {
         guard isRunning.value else {
             return
@@ -159,33 +159,33 @@ public final class IORecorder {
             append(sampleBuffer)
         }
     }
-
-public func finishWriting() {
-    guard let writer = writer, writer.status == .writing else {
-        delegate?.recorder(self, errorOccured: .failedToFinishWriting(error: writer?.error))
-        return
+    
+    public func finishWriting() {
+        guard let writer = writer, writer.status == .writing else {
+            delegate?.recorder(self, errorOccured: .failedToFinishWriting(error: writer?.error))
+            return
+        }
+        let dispatchGroup = DispatchGroup()
+        dispatchGroup.enter()
+        for (_, input) in writerInputs {
+            input.markAsFinished()
+        }
+        writer.finishWriting {
+            self.movieFiles.append(writer.outputURL) // Add URL to movieFiles
+            self.delegate?.recorder(self, finishWriting: writer)
+            self.writer = nil
+            self.writerInputs.removeAll()
+            self.pixelBufferAdaptor = nil
+            dispatchGroup.leave()
+        }
+        dispatchGroup.wait()
     }
-    let dispatchGroup = DispatchGroup()
-    dispatchGroup.enter()
-    for (_, input) in writerInputs {
-        input.markAsFinished()
-    }
-    writer.finishWriting {
-        self.movieFiles.append(writer.outputURL) // Add URL to movieFiles
-        self.delegate?.recorder(self, finishWriting: writer)
-        self.writer = nil
-        self.writerInputs.removeAll()
-        self.pixelBufferAdaptor = nil
-        dispatchGroup.leave()
-    }
-    dispatchGroup.wait()
-}
-
+    
     private func makeWriterInput(_ mediaType: AVMediaType, sourceFormatHint: CMFormatDescription?) -> AVAssetWriterInput? {
         guard writerInputs[mediaType] == nil else {
             return writerInputs[mediaType]
         }
-
+        
         var outputSettings: [String: Any] = [:]
         if let defaultOutputSettings: [String: Any] = self.outputSettings[mediaType] {
             switch mediaType {
@@ -233,7 +233,7 @@ public func finishWriting() {
         }
         return input
     }
-
+    
     private func makePixelBufferAdaptor(_ writerInput: AVAssetWriterInput?) -> AVAssetWriterInputPixelBufferAdaptor? {
         guard pixelBufferAdaptor == nil else {
             return pixelBufferAdaptor
@@ -245,70 +245,70 @@ public func finishWriting() {
         pixelBufferAdaptor = adaptor
         return adaptor
     }
-
-func mergeVideos(outputURL: URL, completion: @escaping (Result<URL, Error>) -> Void) {
-    // Check if there's only one file, no need to merge
-    guard movieFiles.count > 1 else {
-        if let firstFile = movieFiles.first {
-            completion(.success(firstFile))
-            movieFiles.removeAll();
-        } else {
-            completion(.failure(NSError(domain: "MergeError", code: -1, userInfo: [NSLocalizedDescriptionKey: "No files to merge."])))
-        }
-        return
-    }
     
-    let composition = AVMutableComposition()
-    
-    // Add video and audio tracks to the composition
-    guard let videoTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid),
-          let audioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) else {
-        completion(.failure(NSError(domain: "MergeError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create composition tracks."])))
-        return
-    }
-    
-    var currentTime = CMTime.zero
-    
-    do {
-        for fileURL in movieFiles {
-            let asset = AVAsset(url: fileURL)
-            let videoAssetTrack = try asset.tracks(withMediaType: .video).first
-            let audioAssetTrack = try asset.tracks(withMediaType: .audio).first
-            
-            try videoTrack.insertTimeRange(CMTimeRange(start: .zero, duration: asset.duration), of: videoAssetTrack!, at: currentTime)
-            try audioTrack.insertTimeRange(CMTimeRange(start: .zero, duration: asset.duration), of: audioAssetTrack!, at: currentTime)
-            
-            currentTime = CMTimeAdd(currentTime, asset.duration)
-        }
-        
-        // Export the composition
-        let exporter = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetHighestQuality)!
-        exporter.outputURL = outputURL
-        exporter.outputFileType = .mp4
-        exporter.shouldOptimizeForNetworkUse = true
-        
-        exporter.exportAsynchronously {
-            switch exporter.status {
-            case .completed:
-                // Remove original files
-                for fileURL in movieFiles {
-                    try? FileManager.default.removeItem(at: fileURL)
-                }
+    func mergeVideos(outputURL: URL, completion: @escaping (Result<URL, Error>) -> Void) {
+        // Check if there's only one file, no need to merge
+        guard movieFiles.count > 1 else {
+            if let firstFile = movieFiles.first {
+                completion(.success(firstFile))
                 movieFiles.removeAll();
-                completion(.success(outputURL))
-            case .failed, .cancelled:
-                completion(.failure(exporter.error ?? NSError(domain: "MergeError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Unknown export error."])))
-            default:
-                break
+            } else {
+                completion(.failure(.failedToFinishWriting(error: NSError(domain: "MergeErrorDomain", code: -1, userInfo: nil))))
             }
+            return
         }
-    } catch {
-        completion(.failure(error))
+        
+        let composition = AVMutableComposition()
+        
+        // Add video and audio tracks to the composition
+        guard let videoTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid),
+              let audioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) else {
+            completion(.failure(.failedToFinishWriting(error: NSError(domain: "MergeErrorDomain", code: -1, userInfo: nil))))
+            return
+        }
+        
+        var currentTime = CMTime.zero
+        
+        do {
+            for fileURL in movieFiles {
+                let asset = AVAsset(url: fileURL)
+                let videoAssetTrack = try asset.tracks(withMediaType: .video).first
+                let audioAssetTrack = try asset.tracks(withMediaType: .audio).first
+                
+                try videoTrack.insertTimeRange(CMTimeRange(start: .zero, duration: asset.duration), of: videoAssetTrack!, at: currentTime)
+                try audioTrack.insertTimeRange(CMTimeRange(start: .zero, duration: asset.duration), of: audioAssetTrack!, at: currentTime)
+                
+                currentTime = CMTimeAdd(currentTime, asset.duration)
+            }
+            
+            // Export the composition
+            let exporter = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetHighestQuality)!
+            exporter.outputURL = outputURL
+            exporter.outputFileType = .mp4
+            exporter.shouldOptimizeForNetworkUse = true
+            
+            exporter.exportAsynchronously {
+                switch exporter.status {
+                case .completed:
+                    // Remove original files
+                    for fileURL in self.movieFiles {
+                        try? FileManager.default.removeItem(at: fileURL)
+                    }
+                    self.movieFiles.removeAll();
+                    completion(.success(outputURL))
+                case .failed, .cancelled:
+                    completion(.failure(.failedToFinishWriting(error: NSError(domain: "MergeErrorDomain", code: -1, userInfo: nil))))
+                default:
+                    break
+                }
+            }
+        } catch {
+            completion(.failure(.failedToFinishWriting(error: NSError(domain: "MergeErrorDomain", code: -1, userInfo: nil))))
+        }
     }
-}
-
-
-
+    
+    
+    
 }
 
 extension IORecorder: Running {
@@ -329,43 +329,43 @@ extension IORecorder: Running {
             }
         }
     }
-
-public func pauseRunning() {
-    lockQueue.async {
-        guard self.isRunning.value else {
-            return
+    
+    public func pauseRunning() {
+        lockQueue.async {
+            guard self.isRunning.value else {
+                return
+            }
+            self.finishWriting()
+            self.isRunning.mutate { $0 = false }
         }
-        self.finishWriting()
-        self.isRunning.mutate { $0 = false }
     }
-}
-
-public func resumeRunning() {
-    lockQueue.async {
-        guard !self.isRunning.value else {
-            return
+    
+    public func resumeRunning() {
+        lockQueue.async {
+            guard !self.isRunning.value else {
+                return
+            }
+            self.startRunning() // This will create a new file
         }
-        self.startRunning() // This will create a new file
     }
-}
-
-public func stopRunning() {
-    lockQueue.async {
-        guard self.isRunning.value else {
-            return
-        }
-        self.finishWriting()
-        self.isRunning.mutate { $0 = false }
-         let url = self.moviesDirectory.appendingPathComponent((UUID().uuidString)).appendingPathExtension("mp4");
-
-        self.mergeVideos(url) { result in
-            switch result {
-            case .success(let mergedURL):
-                print("Merged video saved at: \(mergedURL)")
-            case .failure(let error):
-                print("Failed to merge videos: \(error)")
+    
+    public func stopRunning() {
+        lockQueue.async {
+            guard self.isRunning.value else {
+                return
+            }
+            self.finishWriting()
+            self.isRunning.mutate { $0 = false }
+            let url = self.moviesDirectory.appendingPathComponent((UUID().uuidString)).appendingPathExtension("mp4");
+            
+            self.mergeVideos(outputURL: url) { result in
+                switch result {
+                case .success(let mergedURL):
+                    print("Merged video saved at: \(mergedURL)")
+                case .failure(let error):
+                    print("Failed to merge videos: \(error)")
+                }
             }
         }
     }
-}
 }
