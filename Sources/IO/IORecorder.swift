@@ -61,6 +61,9 @@ public final class IORecorder {
     private var videoPresentationTime: CMTime = .zero
     private var dimensions: CMVideoDimensions = .init(width: 0, height: 0)
 
+    private var pauseStartTime: CMTime = .zero
+    private var totalPausedDuration: CMTime = .zero
+
     #if os(iOS)
     private lazy var moviesDirectory: URL = {
         URL(fileURLWithPath: NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true)[0])
@@ -71,73 +74,77 @@ public final class IORecorder {
     }()
     #endif
 
-public func append(_ sampleBuffer: CMSampleBuffer) {
-    guard isRunning.value else {
-        return
-    }
-
-    let mediaType: AVMediaType = (sampleBuffer.formatDescription?._mediaType == kCMMediaType_Video) ? .video : .audio
-    lockQueue.async {
-        guard
-            let writer = self.writer,
-            let input = self.makeWriterInput(mediaType, sourceFormatHint: sampleBuffer.formatDescription),
-            self.isReadyForStartWriting else {
+    public func append(_ sampleBuffer: CMSampleBuffer) {
+        guard isRunning.value else {
             return
         }
 
-        if writer.status == .unknown {
-            writer.startWriting()
-            writer.startSession(atSourceTime: sampleBuffer.presentationTimeStamp)
-        }
+        let mediaType: AVMediaType = (sampleBuffer.formatDescription?._mediaType == kCMMediaType_Video) ? .video : .audio
+        lockQueue.async {
+            guard
+                let writer = self.writer,
+                let input = self.makeWriterInput(mediaType, sourceFormatHint: sampleBuffer.formatDescription),
+                self.isReadyForStartWriting else {
+                return
+            }
 
-        if input.isReadyForMoreMediaData {
+            if writer.status == .unknown {
+                writer.startWriting()
+                writer.startSession(atSourceTime: sampleBuffer.presentationTimeStamp)
+            }
+
+            let adjustedPresentationTime = sampleBuffer.presentationTimeStamp - self.totalPausedDuration
+
+            if input.isReadyForMoreMediaData {
+                if !input.append(sampleBuffer.withPresentationTime(adjustedPresentationTime)) {
+                    self.delegate?.recorder(self, errorOccured: .failedToAppend(error: writer.error))
+                }
+            }
+
             switch mediaType {
             case .audio:
-                self.audioPresentationTime = sampleBuffer.presentationTimeStamp
+                self.audioPresentationTime = adjustedPresentationTime
             case .video:
-                self.videoPresentationTime = sampleBuffer.presentationTimeStamp
+                self.videoPresentationTime = adjustedPresentationTime
             default:
                 break
             }
-
-            if !input.append(sampleBuffer) {
-                self.delegate?.recorder(self, errorOccured: .failedToAppend(error: writer.error))
-            }
         }
     }
-}
 
-public func append(_ pixelBuffer: CVPixelBuffer, withPresentationTime: CMTime) {
-    guard isRunning.value else {
-        return
-    }
-
-    lockQueue.async {
-        if self.dimensions.width != pixelBuffer.width || self.dimensions.height != pixelBuffer.height {
-            self.dimensions = .init(width: Int32(pixelBuffer.width), height: Int32(pixelBuffer.height))
-        }
-        guard
-            let writer = self.writer,
-            let input = self.makeWriterInput(.video, sourceFormatHint: nil),
-            let adaptor = self.makePixelBufferAdaptor(input),
-            self.isReadyForStartWriting && self.videoPresentationTime.seconds < withPresentationTime.seconds else {
+    public func append(_ pixelBuffer: CVPixelBuffer, withPresentationTime: CMTime) {
+        guard isRunning.value else {
             return
         }
 
-        if writer.status == .unknown {
-            writer.startWriting()
-            writer.startSession(atSourceTime: withPresentationTime)
-        }
+        lockQueue.async {
+            if self.dimensions.width != pixelBuffer.width || self.dimensions.height != pixelBuffer.height {
+                self.dimensions = .init(width: Int32(pixelBuffer.width), height: Int32(pixelBuffer.height))
+            }
+            guard
+                let writer = self.writer,
+                let input = self.makeWriterInput(.video, sourceFormatHint: nil),
+                let adaptor = self.makePixelBufferAdaptor(input),
+                self.isReadyForStartWriting && self.videoPresentationTime.seconds < withPresentationTime.seconds else {
+                return
+            }
 
-        if input.isReadyForMoreMediaData {
-            if adaptor.append(pixelBuffer, withPresentationTime: withPresentationTime) {
-                self.videoPresentationTime = withPresentationTime
-            } else {
-                self.delegate?.recorder(self, errorOccured: .failedToAppend(error: writer.error))
+            if writer.status == .unknown {
+                writer.startWriting()
+                writer.startSession(atSourceTime: withPresentationTime)
+            }
+
+            let adjustedPresentationTime = withPresentationTime - self.totalPausedDuration
+
+            if input.isReadyForMoreMediaData {
+                if adaptor.append(pixelBuffer, withPresentationTime: adjustedPresentationTime) {
+                    self.videoPresentationTime = adjustedPresentationTime
+                } else {
+                    self.delegate?.recorder(self, errorOccured: .failedToAppend(error: writer.error))
+                }
             }
         }
     }
-}
 
     func append(_ audioPCMBuffer: AVAudioPCMBuffer, when: AVAudioTime) {
         guard isRunning.value else {
@@ -258,8 +265,9 @@ extension IORecorder: Running {
             guard self.isRunning.value else {
                 return
             }
+            self.pauseStartTime = max(self.videoPresentationTime, self.audioPresentationTime)
             self.isRunning.mutate { $0 = false }
-        }
+        }        
     }
 
     public func resumeRunning() {
@@ -267,9 +275,8 @@ extension IORecorder: Running {
             guard !self.isRunning.value else {
                 return
             }
-            if let writer = self.writer, writer.status == .writing {
-                writer.startSession(atSourceTime: CMTime(seconds: self.videoPresentationTime.seconds, preferredTimescale: 600))
-            }
+            let currentTime = CMTime(seconds: CACurrentMediaTime(), preferredTimescale: 600)
+            self.totalPausedDuration = self.totalPausedDuration + (currentTime - self.pauseStartTime)
             self.isRunning.mutate { $0 = true }
         }
     }
@@ -282,5 +289,14 @@ extension IORecorder: Running {
             self.finishWriting()
             self.isRunning.mutate { $0 = false }
         }
+    }
+}
+
+extension CMSampleBuffer {
+    func withPresentationTime(_ newTime: CMTime) -> CMSampleBuffer {
+        var timingInfo = CMSampleTimingInfo(duration: .invalid, presentationTimeStamp: newTime, decodeTimeStamp: .invalid)
+        var outputBuffer: CMSampleBuffer?
+        CMSampleBufferCreateCopyWithNewTiming(kCFAllocatorDefault, self, 1, &timingInfo, &outputBuffer)
+        return outputBuffer ?? self
     }
 }
