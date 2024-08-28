@@ -60,6 +60,8 @@ public final class IORecorder {
     private var audioPresentationTime: CMTime = .zero
     private var videoPresentationTime: CMTime = .zero
     private var dimensions: CMVideoDimensions = .init(width: 0, height: 0)
+    private var movieFiles: [URL] = []
+
 
     #if os(iOS)
     private lazy var moviesDirectory: URL = {
