@@ -158,25 +158,26 @@ public final class IORecorder {
         }
     }
 
-    func finishWriting() {
-        guard let writer = writer, writer.status == .writing else {
-            delegate?.recorder(self, errorOccured: .failedToFinishWriting(error: writer?.error))
-            return
-        }
-        let dispatchGroup = DispatchGroup()
-        dispatchGroup.enter()
-        for (_, input) in writerInputs {
-            input.markAsFinished()
-        }
-        writer.finishWriting {
-            self.delegate?.recorder(self, finishWriting: writer)
-            self.writer = nil
-            self.writerInputs.removeAll()
-            self.pixelBufferAdaptor = nil
-            dispatchGroup.leave()
-        }
-        dispatchGroup.wait()
+public func finishWriting() {
+    guard let writer = writer, writer.status == .writing else {
+        delegate?.recorder(self, errorOccured: .failedToFinishWriting(error: writer?.error))
+        return
     }
+    let dispatchGroup = DispatchGroup()
+    dispatchGroup.enter()
+    for (_, input) in writerInputs {
+        input.markAsFinished()
+    }
+    writer.finishWriting {
+        self.movieFiles.append(writer.outputURL) // Add URL to movieFiles
+        self.delegate?.recorder(self, finishWriting: writer)
+        self.writer = nil
+        self.writerInputs.removeAll()
+        self.pixelBufferAdaptor = nil
+        dispatchGroup.leave()
+    }
+    dispatchGroup.wait()
+}
 
     private func makeWriterInput(_ mediaType: AVMediaType, sourceFormatHint: CMFormatDescription?) -> AVAssetWriterInput? {
         guard writerInputs[mediaType] == nil else {
@@ -242,6 +243,92 @@ public final class IORecorder {
         pixelBufferAdaptor = adaptor
         return adaptor
     }
+
+
+private func mergeVideos(completion: @escaping (Result<URL, Error>) -> Void) {
+    // Check if there's more than one file to merge
+    guard movieFiles.count > 1 else {
+        // Only one file or no files, handle accordingly
+        if let singleFileURL = movieFiles.first {
+            // Optionally, move or copy the single file to a desired location
+            completion(.success(singleFileURL))
+        } else {
+            // Handle the case where no files are present
+            completion(.failure(.failedToMergeFiles(error: NSError(domain: "MergeErrorDomain", code: -1, userInfo: nil))))
+        }
+        // Clear the movieFiles array regardless of the count
+        self.movieFiles.removeAll()
+        return
+    }
+    
+    // Continue with merging process
+    let composition = AVMutableComposition()
+    let videoComposition = AVMutableVideoComposition()
+    let audioMix = AVMutableAudioMix()
+
+    var videoTracks: [AVAssetTrack] = []
+    var audioTracks: [AVAssetTrack] = []
+
+    for fileURL in movieFiles {
+        let asset = AVAsset(url: fileURL)
+        videoTracks.append(contentsOf: asset.tracks(withMediaType: .video))
+        audioTracks.append(contentsOf: asset.tracks(withMediaType: .audio))
+    }
+
+    let compositionVideoTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid)
+    let compositionAudioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)
+
+    var currentTime = CMTime.zero
+    for videoTrack in videoTracks {
+        do {
+            try compositionVideoTrack?.insertTimeRange(CMTimeRange(start: .zero, duration: videoTrack.timeRange.duration), of: videoTrack, at: currentTime)
+            currentTime = CMTimeAdd(currentTime, videoTrack.timeRange.duration)
+        } catch {
+            completion(.failure(.failedToMergeFiles(error: error)))
+            return
+        }
+    }
+
+    var audioMixInputParameters = [AVMutableAudioMixInputParameters]()
+    for audioTrack in audioTracks {
+        let inputParameters = AVMutableAudioMixInputParameters(track: audioTrack)
+        audioMixInputParameters.append(inputParameters)
+    }
+    audioMix.inputParameters = audioMixInputParameters
+
+    let outputURL = moviesDirectory.appendingPathComponent("merged").appendingPathExtension("mp4")
+    guard let exportSession = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetHighestQuality) else {
+        completion(.failure(.failedToMergeFiles(error: NSError(domain: "MergeErrorDomain", code: -1, userInfo: nil))))
+        return
+    }
+    exportSession.outputURL = outputURL
+    exportSession.outputFileType = .mp4
+    exportSession.videoComposition = videoComposition
+    exportSession.audioMix = audioMix
+
+    exportSession.exportAsynchronously {
+        switch exportSession.status {
+        case .completed:
+            // Clear the movieFiles array and delete intermediate files
+            self.movieFiles.forEach { fileURL in
+                do {
+                    try FileManager.default.removeItem(at: fileURL)
+                } catch {
+                    print("Failed to delete file at \(fileURL): \(error)")
+                }
+            }
+            self.movieFiles.removeAll()
+            completion(.success(outputURL))
+        case .failed:
+            if let error = exportSession.error {
+                completion(.failure(.failedToMergeFiles(error: error)))
+            }
+        default:
+            break
+        }
+    }
+}
+
 }
 
 extension IORecorder: Running {
@@ -263,31 +350,40 @@ extension IORecorder: Running {
         }
     }
 
-    public func pauseRunning() {
-        lockQueue.async {
-            guard self.isRunning.value else {
-                return
-            }
-            self.isRunning.mutate { $0 = false}
+public func pauseRunning() {
+    lockQueue.async {
+        guard self.isRunning.value else {
+            return
         }
+        self.finishWriting()
+        self.isRunning.mutate { $0 = false }
     }
+}
 
-    public func resumeRunning() {
-        lockQueue.async {
-            guard !self.isRunning.value else {
-                return
-            }
-            self.isRunning.mutate { $0 = true}
+public func resumeRunning() {
+    lockQueue.async {
+        guard !self.isRunning.value else {
+            return
         }
+        self.startRunning() // This will create a new file
     }
+}
 
-    public func stopRunning() {
-        lockQueue.async {
-            guard self.isRunning.value else {
-                return
+public func stopRunning() {
+    lockQueue.async {
+        guard self.isRunning.value else {
+            return
+        }
+        self.finishWriting()
+        self.isRunning.mutate { $0 = false }
+        self.mergeVideos { result in
+            switch result {
+            case .success(let mergedURL):
+                print("Merged video saved at: \(mergedURL)")
+            case .failure(let error):
+                print("Failed to merge videos: \(error)")
             }
-            self.finishWriting()
-            self.isRunning.mutate { $0 = false }
         }
     }
+}
 }
