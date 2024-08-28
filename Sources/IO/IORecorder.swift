@@ -268,7 +268,7 @@ extension IORecorder: Running {
             guard self.isRunning.value else {
                 return
             }
-            self.isRunning.mutate { $0 = false}
+            self.isRunning.mutate { $0 = false }
         }
     }
 
@@ -277,15 +277,18 @@ extension IORecorder: Running {
             guard !self.isRunning.value else {
                 return
             }
-            self.isRunning.mutate { $0 = true}
+            if let writer = self.writer, writer.status == .writing {
+                writer.startSession(atSourceTime: CMTime(seconds: self.videoPresentationTime.seconds, preferredTimescale: 600))
+            }
+            self.isRunning.mutate { $0 = true }
         }
     }
 
     public func stopRunning() {
         lockQueue.async {
-            guard self.isRunning.value else {
+            /*guard self.isRunning.value else {
                 return
-            }
+            }*/
             self.finishWriting()
             self.isRunning.mutate { $0 = false }
         }
