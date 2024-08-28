@@ -245,6 +245,19 @@ public final class IORecorder {
         pixelBufferAdaptor = adaptor
         return adaptor
     }
+
+    func printAssetFileSize(for fileURL: URL) {
+    do {
+        let fileAttributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+        if let fileSize = fileAttributes[.size] as? UInt64 {
+            print("File size of \(fileURL.lastPathComponent): \(fileSize) bytes")
+        } else {
+            print("Failed to get file size for \(fileURL.lastPathComponent)")
+        }
+    } catch {
+        print("Error retrieving file size: \(error.localizedDescription)")
+    }
+}
     
     func mergeVideos(outputURL: URL, completion: @escaping (Result<URL, Error>) -> Void) {
         // Check if there's only one file, no need to merge
@@ -271,6 +284,7 @@ public final class IORecorder {
         
         do {
             for fileURL in movieFiles {
+                printAssetFileSize(fileURL);
                 let asset = AVAsset(url: fileURL)
                 let videoAssetTrack = try asset.tracks(withMediaType: .video).first
                 let audioAssetTrack = try asset.tracks(withMediaType: .audio).first
