@@ -182,17 +182,19 @@ func finishWriting() {
     print("Finishing writing 2.0, writer status: \(writer.status.rawValue)")
 
     // Attempt to mark inputs as finished, regardless of writer status
+    let dispatchGroup = DispatchGroup()
+    dispatchGroup.enter()
     for (_, input) in writerInputs {
         input.markAsFinished()
     }
-
     writer.finishWriting {
-        print("Finish writing complete 2.0, writer status: \(writer.status.rawValue), error: \(String(describing: writer.error))")
+        print("Finishing writing complete 2.0, writer status: \(writer.status.rawValue)")
         self.delegate?.recorder(self, finishWriting: writer)
         self.writer = nil
         self.writerInputs.removeAll()
-        self.pixelBufferAdaptor = nil
+        dispatchGroup.leave()
     }
+    dispatchGroup.wait()
 }
 
 
