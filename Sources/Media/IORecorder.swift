@@ -179,7 +179,7 @@ public class IORecorder {
             return
         }
 
-        print("Finishing writing 3.1, writer status: \(writer.status.rawValue)")
+        print("Finishing writing 3.2, writer status: \(writer.status.rawValue)")
 
         // Attempt to mark inputs as finished, regardless of writer status
         let dispatchGroup = DispatchGroup()
@@ -188,7 +188,7 @@ public class IORecorder {
             input.markAsFinished()
         }
         writer.finishWriting {
-            print("Finish writing complete 3.1, writer status: \(writer.status.rawValue), error: \(String(describing: writer.error))")
+            print("Finish writing complete 3.2, writer status: \(writer.status.rawValue), error: \(String(describing: writer.error))")
             self.delegate?.recorder(self, finishWriting: writer)
             self.writer = nil
             self.writerInputs.removeAll()
@@ -341,8 +341,16 @@ extension IORecorder: Running {
 
     public func stopRunning() {
         lockQueue.async {
-            guard self.isRunning.value else {
-                return
+           guard self.isRunning.value else {
+              // TODO: potentally add in a safety check if writer not nil and is writing to mark as finished
+              // in case the isRunning variable is not proper for some reason
+              if self.writer != nil {
+                print("IORecorder stopRunning wtf but we saving to be safe!"); 
+                self.finishWriting()
+                self.isRunning.mutate { $0 = false }
+              }
+
+              return
             }
             self.finishWriting()
             self.isRunning.mutate { $0 = false }
