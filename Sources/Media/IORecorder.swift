@@ -179,7 +179,7 @@ public class IORecorder {
             return
         }
 
-        print("Finishing writing 3.2, writer status: \(writer.status.rawValue)")
+        print("Finishing writing 3.3, writer status: \(writer.status.rawValue)")
 
         // Attempt to mark inputs as finished, regardless of writer status
         let dispatchGroup = DispatchGroup()
@@ -188,7 +188,7 @@ public class IORecorder {
             input.markAsFinished()
         }
         writer.finishWriting {
-            print("Finish writing complete 3.2, writer status: \(writer.status.rawValue), error: \(String(describing: writer.error))")
+            print("Finish writing complete 3.3, writer status: \(writer.status.rawValue), error: \(String(describing: writer.error))")
             self.delegate?.recorder(self, finishWriting: writer)
             self.writer = nil
             self.writerInputs.removeAll()
