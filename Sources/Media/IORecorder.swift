@@ -144,16 +144,25 @@ public class IORecorder {
     }
 
     func finishWriting() {
-        guard let writer = writer, writer.status == .writing else {
-            delegate?.recorder(self, errorOccured: .failedToFinishWriting(error: writer?.error))
+        guard let writer = writer else {
+            delegate?.recorder(self, errorOccured: .failedToFinishWriting(error: nil))
             return
         }
+    
+        print("Finishing writing, writer status: \(writer.status.rawValue)")
+
+        guard writer.status == .writing else {
+            delegate?.recorder(self, errorOccured: .failedToFinishWriting(error: writer.error))
+            return
+        }
+
         let dispatchGroup = DispatchGroup()
         dispatchGroup.enter()
         for (_, input) in writerInputs {
             input.markAsFinished()
         }
         writer.finishWriting {
+            print("Finish writing complete, writer status: \(writer.status.rawValue), error: \(String(describing: writer.error))")
             self.delegate?.recorder(self, finishWriting: writer)
             self.writer = nil
             self.writerInputs.removeAll()
