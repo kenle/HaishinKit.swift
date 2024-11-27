@@ -37,12 +37,22 @@ public class IORecorder {
         ]
     ]
 
+    public var fileName: String?
+
     /// Specifies the delegate.
     public weak var delegate: IORecorderDelegate?
     /// Specifies the recorder settings.
     public var outputSettings: [AVMediaType: [String: Any]] = IORecorder.defaultOutputSettings
     /// The running indicies whether recording or not.
     public private(set) var isRunning: Atomic<Bool> = .init(false)
+
+    public var movieFragmentInterval: Double? {
+        didSet {
+            if let movieFragmentInterval {
+                self.movieFragmentInterval = max(10.0, movieFragmentInterval)
+            }
+        }
+    }
 
     private let lockQueue = DispatchQueue(label: "com.haishinkit.HaishinKit.IORecorder.lock")
     private var isReadyForStartWriting: Bool {
@@ -143,13 +153,13 @@ public class IORecorder {
         }
     }
 
-    /*func finishWriting() {
+    *func finishWriting() {
         guard let writer = writer else {
             delegate?.recorder(self, errorOccured: .failedToFinishWriting(error: nil))
             return
         }
     
-        print("Finishing writing, writer status: \(writer.status.rawValue)")
+        print("Finishing writing original, writer status: \(writer.status.rawValue)")
 
         guard writer.status == .writing else {
             delegate?.recorder(self, errorOccured: .failedToFinishWriting(error: writer.error))
@@ -162,7 +172,7 @@ public class IORecorder {
             input.markAsFinished()
         }
         writer.finishWriting {
-            print("Finish writing complete, writer status: \(writer.status.rawValue), error: \(String(describing: writer.error))")
+            print("Finish writing original complete, writer status: \(writer.status.rawValue), error: \(String(describing: writer.error))")
             self.delegate?.recorder(self, finishWriting: writer)
             self.writer = nil
             self.writerInputs.removeAll()
@@ -170,9 +180,10 @@ public class IORecorder {
             dispatchGroup.leave()
         }
         dispatchGroup.wait()
-    }*/
+    }
 
 
+    /*
     func finishWriting() {
         guard let writer = writer else {
         delegate?.recorder(self, errorOccured: .failedToFinishWriting(error: nil))
@@ -207,7 +218,7 @@ public class IORecorder {
             dispatchGroup.leave()
         }
         dispatchGroup.wait()
-    }
+    }*/
 
 
 
@@ -342,8 +353,12 @@ extension IORecorder: Running {
             do {
                 self.videoPresentationTime = .zero
                 self.audioPresentationTime = .zero
-                let url = self.moviesDirectory.appendingPathComponent((UUID().uuidString)).appendingPathExtension("mp4")
+                let fileName = self.fileName ?? UUID().uuidString
+                let url = self.moviesDirectory.appendingPathComponent(fileName).appendingPathExtension("mp4")
                 self.writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
+                if let movieFragmentInterval = self.movieFragmentInterval {
+                    self.writer?.movieFragmentInterval = CMTime(seconds: movieFragmentInterval, preferredTimescale: 1)
+                }
                 self.isRunning.mutate { $0 = true }
             } catch {
                 self.delegate?.recorder(self, errorOccured: .failedToCreateAssetWriter(error: error))
@@ -356,12 +371,11 @@ extension IORecorder: Running {
            guard self.isRunning.value else {
               // TODO: potentally add in a safety check if writer not nil and is writing to mark as finished
               // in case the isRunning variable is not proper for some reason
-              if self.writer != nil {
+              /*if self.writer != nil {
                 print("IORecorder stopRunning wtf but we saving to be safe!"); 
                 self.finishWriting()
                 self.isRunning.mutate { $0 = false }
-              }
-
+              }*/
               return
             }
             self.finishWriting()
