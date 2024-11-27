@@ -325,7 +325,7 @@ extension IORecorder: Running {
     public func startRunning() {
         lockQueue.async {
             if self.writer != nil {
-              print("IORecorder startRunning wtf but we saving to be safe!"); 
+              print("IORecorder startRunning wtf but we saving to be safe!");
               self.finishWriting()
               self.isRunning.mutate { $0 = false }
             } else {
