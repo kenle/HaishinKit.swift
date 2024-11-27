@@ -179,7 +179,7 @@ func finishWriting() {
         return
     }
 
-    print("Finishing writing 2.0, writer status: \(writer.status.rawValue)")
+    print("Finishing writing 3.0, writer status: \(writer.status.rawValue)")
 
     // Attempt to mark inputs as finished, regardless of writer status
     let dispatchGroup = DispatchGroup()
@@ -188,7 +188,7 @@ func finishWriting() {
         input.markAsFinished()
     }
     writer.finishWriting {
-        print("Finishing writing complete 2.0, writer status: \(writer.status.rawValue)")
+        print("Finishing writing complete 3.0, writer status: \(writer.status.rawValue)")
         self.delegate?.recorder(self, finishWriting: writer)
         self.writer = nil
         self.writerInputs.removeAll()
