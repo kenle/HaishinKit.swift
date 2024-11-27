@@ -143,7 +143,7 @@ public class IORecorder {
         }
     }
 
-    func finishWriting() {
+    /*func finishWriting() {
         guard let writer = writer else {
             delegate?.recorder(self, errorOccured: .failedToFinishWriting(error: nil))
             return
@@ -170,7 +170,32 @@ public class IORecorder {
             dispatchGroup.leave()
         }
         dispatchGroup.wait()
+    }*/
+
+
+func finishWriting() {
+    guard let writer = writer else {
+        delegate?.recorder(self, errorOccured: .failedToFinishWriting(error: nil))
+        return
     }
+
+    print("Finishing writing 2.0, writer status: \(writer.status.rawValue)")
+
+    // Attempt to mark inputs as finished, regardless of writer status
+    for (_, input) in writerInputs {
+        input.markAsFinished()
+    }
+
+    writer.finishWriting {
+        print("Finish writing complete 2.0, writer status: \(writer.status.rawValue), error: \(String(describing: writer.error))")
+        self.delegate?.recorder(self, finishWriting: writer)
+        self.writer = nil
+        self.writerInputs.removeAll()
+        self.pixelBufferAdaptor = nil
+    }
+}
+
+
 
     private func makeWriterInput(_ mediaType: AVMediaType, sourceFormatHint: CMFormatDescription?) -> AVAssetWriterInput? {
         guard writerInputs[mediaType] == nil else {
