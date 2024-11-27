@@ -153,7 +153,7 @@ public class IORecorder {
         }
     }
 
-    *func finishWriting() {
+    func finishWriting() {
         guard let writer = writer else {
             delegate?.recorder(self, errorOccured: .failedToFinishWriting(error: nil))
             return
