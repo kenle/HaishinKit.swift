@@ -179,16 +179,27 @@ public class IORecorder {
             return
         }
 
-        print("Finishing writing 3.3, writer status: \(writer.status.rawValue)")
+        print("Finishing writing 3.4, writer status: \(writer.status.rawValue)")
 
         // Attempt to mark inputs as finished, regardless of writer status
         let dispatchGroup = DispatchGroup()
         dispatchGroup.enter()
+
         for (_, input) in writerInputs {
             input.markAsFinished()
         }
-        writer.finishWriting {
-            print("Finish writing complete 3.3, writer status: \(writer.status.rawValue), error: \(String(describing: writer.error))")
+
+        if writer.status == .writing {
+            writer.finishWriting {
+                print("Finish writing complete 3.4, writer status: \(writer.status.rawValue), error: \(String(describing: writer.error))")
+                self.delegate?.recorder(self, finishWriting: writer)
+                self.writer = nil
+                self.writerInputs.removeAll()
+                self.pixelBufferAdaptor = nil
+                dispatchGroup.leave()
+            }
+        } else {
+            print("Finish writing something went wrong but trying to save anyway complete 3.4, writer status: \(writer.status.rawValue), error: \(String(describing: writer.error))")
             self.delegate?.recorder(self, finishWriting: writer)
             self.writer = nil
             self.writerInputs.removeAll()
@@ -324,16 +335,6 @@ extension IORecorder: Running {
     // MARK: Running
     public func startRunning() {
         lockQueue.async {
-            if self.writer != nil {
-              print("IORecorder startRunning wtf but we saving to be safe!");
-              self.finishWriting()
-              self.isRunning.mutate { $0 = false }
-            } else {
-                // clear to be safe
-                self.writerInputs.removeAll()
-                self.pixelBufferAdaptor = nil
-            }
-
             guard !self.isRunning.value else {
                 return
             }
