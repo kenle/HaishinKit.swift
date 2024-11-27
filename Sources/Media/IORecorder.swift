@@ -324,9 +324,20 @@ extension IORecorder: Running {
     // MARK: Running
     public func startRunning() {
         lockQueue.async {
+            if self.writer != nil {
+              print("IORecorder startRunning wtf but we saving to be safe!"); 
+              self.finishWriting()
+              self.isRunning.mutate { $0 = false }
+            } else {
+                // clear to be safe
+                self.writerInputs.removeAll()
+                self.pixelBufferAdaptor = nil
+            }
+
             guard !self.isRunning.value else {
                 return
             }
+
             do {
                 self.videoPresentationTime = .zero
                 self.audioPresentationTime = .zero
