@@ -173,29 +173,30 @@ public class IORecorder {
     }*/
 
 
-func finishWriting() {
-    guard let writer = writer else {
+    func finishWriting() {
+        guard let writer = writer else {
         delegate?.recorder(self, errorOccured: .failedToFinishWriting(error: nil))
-        return
-    }
+            return
+        }
 
-    print("Finishing writing 3.0, writer status: \(writer.status.rawValue)")
+        print("Finishing writing 3.1, writer status: \(writer.status.rawValue)")
 
-    // Attempt to mark inputs as finished, regardless of writer status
-    let dispatchGroup = DispatchGroup()
-    dispatchGroup.enter()
-    for (_, input) in writerInputs {
-        input.markAsFinished()
+        // Attempt to mark inputs as finished, regardless of writer status
+        let dispatchGroup = DispatchGroup()
+        dispatchGroup.enter()
+        for (_, input) in writerInputs {
+            input.markAsFinished()
+        }
+        writer.finishWriting {
+            print("Finish writing complete 3.1, writer status: \(writer.status.rawValue), error: \(String(describing: writer.error))")
+            self.delegate?.recorder(self, finishWriting: writer)
+            self.writer = nil
+            self.writerInputs.removeAll()
+            self.pixelBufferAdaptor = nil
+            dispatchGroup.leave()
+        }
+        dispatchGroup.wait()
     }
-    writer.finishWriting {
-        print("Finishing writing complete 3.0, writer status: \(writer.status.rawValue)")
-        self.delegate?.recorder(self, finishWriting: writer)
-        self.writer = nil
-        self.writerInputs.removeAll()
-        dispatchGroup.leave()
-    }
-    dispatchGroup.wait()
-}
 
 
 
