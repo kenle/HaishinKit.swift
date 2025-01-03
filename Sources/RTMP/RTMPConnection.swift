@@ -406,7 +406,7 @@ open class RTMPConnection: EventDispatcher {
             if let description: String = data["description"] as? String {
                 logger.warn(description)
             }
-            close(isDisconnected: true)
+            //close(isDisconnected: true)
         default:
             break
         }
