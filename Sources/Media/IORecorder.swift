@@ -45,6 +45,12 @@ public class IORecorder {
     public var outputSettings: [AVMediaType: [String: Any]] = IORecorder.defaultOutputSettings
     /// The running indicies whether recording or not.
     public private(set) var isRunning: Atomic<Bool> = .init(false)
+    public private(set) var isPaused: Atomic<Bool> = .init(false)
+    public private(set) var discont : Atomic<Bool> = .init(false)
+
+    private var timeOffset = CMTime.zero
+    private var lastVideo = CMTime.zero
+    private var lastAudio = CMTime.zero
 
     public var movieFragmentInterval: Double? {
         didSet {
@@ -80,12 +86,22 @@ public class IORecorder {
     /// Append a sample buffer for recording.
     public func appendSampleBuffer(_ sampleBuffer: CMSampleBuffer, mediaType: AVMediaType) {
         lockQueue.async {
+            guard !isPaused else { return }
+
             guard
                 let writer = self.writer,
                 let input = self.makeWriterInput(mediaType, sourceFormatHint: sampleBuffer.formatDescription),
                 self.isReadyForStartWriting else {
                 return
             }
+
+            if discont {
+                discont = false
+                timeOffset = CMTimeSubtract(CMSampleBufferGetPresentationTimeStamp(sampleBuffer), lastVideo)
+            }
+            
+            let adjustedBuffer = timeOffset.value > 0 ? adjustTime(of: sampleBuffer, by: timeOffset) ?? sampleBuffer : sampleBuffer
+            let pts = CMSampleBufferGetPresentationTimeStamp(adjustedBuffer)
 
             switch writer.status {
             case .unknown:
@@ -106,12 +122,15 @@ public class IORecorder {
             if input.isReadyForMoreMediaData {
                 switch mediaType {
                 case .audio:
+                    lastAudio = pts
                     if input.append(sampleBuffer) {
                         self.audioPresentationTime = sampleBuffer.presentationTimeStamp
                     } else {
                         self.delegate?.recorder(self, errorOccured: .failedToAppend(error: writer.error))
+
                     }
                 case .video:
+                    lastVideo = pts
                     if input.append(sampleBuffer) {
                         self.videoPresentationTime = sampleBuffer.presentationTimeStamp
                     } else {
@@ -340,6 +359,22 @@ public class IORecorder {
 
         return sampleBuffer
     }
+
+    private func adjustTime(of sampleBuffer: CMSampleBuffer, by offset: CMTime) -> CMSampleBuffer? {
+        var count: CMItemCount = 0
+        CMSampleBufferGetSampleTimingInfoArray(sampleBuffer, entryCount: 0, arrayToFill: nil, entriesNeededOut: &count)
+        var timingInfo = [CMSampleTimingInfo](repeating: CMSampleTimingInfo(), count: count)
+        CMSampleBufferGetSampleTimingInfoArray(sampleBuffer, entryCount: count, arrayToFill: &timingInfo, entriesNeededOut: &count)
+        
+        for i in 0..<count {
+            timingInfo[i].decodeTimeStamp = timingInfo[i].decodeTimeStamp - offset
+            timingInfo[i].presentationTimeStamp = timingInfo[i].presentationTimeStamp - offset
+        }
+        
+        var sout: CMSampleBuffer?
+        CMSampleBufferCreateCopyWithNewTiming(allocator: kCFAllocatorDefault, sampleBuffer: sampleBuffer, entryCount: count, sampleTimingArray: &timingInfo, sampleBufferOut: &sout)
+        return sout
+    }
 }
 
 extension IORecorder: Running {
@@ -359,12 +394,45 @@ extension IORecorder: Running {
                 if let movieFragmentInterval = self.movieFragmentInterval {
                     self.writer?.movieFragmentInterval = CMTime(seconds: movieFragmentInterval, preferredTimescale: 1)
                 }
+                self.isPaused.mutate { $0 = false }
+                self.timeOffset = .zero
+                self.discont.mutate { $0 = false }
                 self.isRunning.mutate { $0 = true }
             } catch {
                 self.delegate?.recorder(self, errorOccured: .failedToCreateAssetWriter(error: error))
             }
         }
     }
+
+    public func pauseRunning() {
+        lockQueue.async {
+            guard !self.isRunning.value else {
+                return
+            }
+
+            do {
+                print("Pausing capture")
+                self.isPaused.mutate { $0 = true}
+                self.discont.mutate { $0 = true }
+            } catch {
+            }
+        }
+    }
+
+    public func resumeRunning() {
+        lockQueue.async {
+            guard self.isPaused.value else {
+                return
+            }
+
+            do {
+                print("Resume capture")
+                self.isPaused.mutate { $0 = false }
+            } catch {
+            }
+        }
+    }
+
 
     public func stopRunning() {
         lockQueue.async {
