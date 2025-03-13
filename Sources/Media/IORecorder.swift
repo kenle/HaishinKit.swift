@@ -106,7 +106,7 @@ public class IORecorder {
                     return;
                 }
                 
-                print("***experimental appendSampleBuffer \(mediaType)");
+                //print("***experimental appendSampleBuffer \(mediaType)");
                 
                 
                 if self.discontAudio {
@@ -148,7 +148,7 @@ public class IORecorder {
                         if input.append(adjustedBuffer) {
                             self.videoPresentationTime = adjustedBuffer.presentationTimeStamp
                         } else {
-                            print("  wtf video error");
+                            //print("  wtf video error");
                             self.delegate?.recorder(self, errorOccured: .failedToAppend(error: writer.error))
                         }
                     default:
@@ -163,7 +163,7 @@ public class IORecorder {
                     return
                 }
                 
-                print("ORIGINAL appendSampleBuffer \(mediaType)");
+                //print("ORIGINAL appendSampleBuffer \(mediaType)");
 
                 
                 switch writer.status {
@@ -188,7 +188,7 @@ public class IORecorder {
                         if input.append(sampleBuffer) {
                             self.audioPresentationTime = sampleBuffer.presentationTimeStamp
                         } else {
-                            print("audio append error");
+                            //print("audio append error");
                             self.delegate?.recorder(self, errorOccured: .failedToAppend(error: writer.error))
                         }
                     case .video:
@@ -223,7 +223,7 @@ public class IORecorder {
                     return
                 }
 
-                print("*** experimental appendPixelBuffer");
+                //print("*** experimental appendPixelBuffer");
                 
                 // based on adjusted audio sample buffer time, the withPresentationTime into this function should
                 // already be ajusted
@@ -252,7 +252,7 @@ public class IORecorder {
                             self.videoPresentationTime = adjustedPresentationTime
                             self.lastVideo = adjustedPresentationTime
                         } else {
-                            print("video append error");
+                            //print("video append error");
                             self.delegate?.recorder(self, errorOccured: .failedToAppend(error: writer.error))
                         }
                     /*
@@ -272,7 +272,7 @@ public class IORecorder {
                     return
                 }
 
-                print("ORIGINAL appendPixelBuffer");
+                //print("ORIGINAL appendPixelBuffer");
 
                 switch writer.status {
                 case .unknown:
