@@ -45,10 +45,11 @@ public class IORecorder {
     public var outputSettings: [AVMediaType: [String: Any]] = IORecorder.defaultOutputSettings
     /// The running indicies whether recording or not.
     public private(set) var isRunning: Atomic<Bool> = .init(false)
-    
-    private var isPaused = false
-    private var discont = false
-    private var enableExperimentalPause = false;
+    public private(set) var isPaused: Atomic<Bool> = .init(false)
+    public private(set) var discontAudio: Atomic<Bool> = .init(false)
+    public private(set) var discontVideo: Atomic<Bool> = .init(false)
+    public private(set) var enableExperimentalPause: Atomic<Bool> = .init(true)
+
     private var timeOffset = CMTime.zero
     private var lastVideo = CMTime.zero
     private var lastAudio = CMTime.zero
@@ -87,8 +88,18 @@ public class IORecorder {
     /// Append a sample buffer for recording.
     public func appendSampleBuffer(_ sampleBuffer: CMSampleBuffer, mediaType: AVMediaType) {
         lockQueue.async {
-            if(self.enableExperimentalPause) {
-                guard !self.isPaused else { return }
+            if(self.enableExperimentalPause.value) {
+                guard self.isRunning.value else {
+                    return;
+                }
+                
+                if (self.isPaused.value) {
+                    //print("paused returning, appendSampleBuffer \(mediaType)");
+
+                    return;
+                }
+                
+                //print("appendSampleBuffer \(mediaType)");
                 
                 guard
                     let writer = self.writer,
@@ -97,8 +108,8 @@ public class IORecorder {
                     return
                 }
                 
-                if self.discont {
-                    self.discont = false
+                if self.discontAudio.value {
+                    self.discontAudio.mutate { $0 = false }
                     self.timeOffset = CMTimeSubtract(CMSampleBufferGetPresentationTimeStamp(sampleBuffer), self.lastVideo)
                 }
                 
@@ -150,6 +161,9 @@ public class IORecorder {
                     return
                 }
                 
+                //print("original appendSampleBuffer \(mediaType)");
+
+                
                 switch writer.status {
                 case .unknown:
                     writer.startWriting()
@@ -191,27 +205,75 @@ public class IORecorder {
     /// Append a pixel buffer for recording.
     public func appendPixelBuffer(_ pixelBuffer: CVPixelBuffer, withPresentationTime: CMTime) {
         lockQueue.async {
-            guard
-                let writer = self.writer,
-                let input = self.makeWriterInput(.video, sourceFormatHint: CMVideoFormatDescription.create(pixelBuffer: pixelBuffer)),
-                let adaptor = self.makePixelBufferAdaptor(input),
-                self.isReadyForStartWriting && self.videoPresentationTime.seconds < withPresentationTime.seconds else {
-                return
-            }
-            
-            switch writer.status {
-            case .unknown:
-                writer.startWriting()
-                writer.startSession(atSourceTime: withPresentationTime)
-            default:
-                break
-            }
-            
-            if input.isReadyForMoreMediaData {
-                if adaptor.append(pixelBuffer, withPresentationTime: withPresentationTime) {
-                    self.videoPresentationTime = withPresentationTime
-                } else {
-                    self.delegate?.recorder(self, errorOccured: .failedToAppend(error: writer.error))
+            //print("appendPixelBuffer, isPaused =\(self.isPaused.value), enableExperimentalPause=\(self.enableExperimentalPause.value)");
+            if self.enableExperimentalPause.value {
+                guard self.isRunning.value else {
+                    return;
+                }
+                
+                if(self.isPaused.value) {
+                    //print("paused returning, appendPixelBuffer");
+                    return
+                }
+
+                //print("appendPixelBuffer");
+
+                guard
+                    let writer = self.writer,
+                    let input = self.makeWriterInput(.video, sourceFormatHint: CMVideoFormatDescription.create(pixelBuffer: pixelBuffer)),
+                    let adaptor = self.makePixelBufferAdaptor(input),
+                    self.isReadyForStartWriting else {
+                    return
+                }
+
+                if self.discontVideo.value {
+                    self.discontVideo.mutate { $0 = false }
+                    self.timeOffset = CMTimeSubtract(withPresentationTime, self.lastVideo)
+                }
+
+                let adjustedPresentationTime = self.timeOffset.value > 0 ? CMTimeSubtract(withPresentationTime, self.timeOffset) : withPresentationTime
+
+                switch writer.status {
+                case .unknown:
+                    writer.startWriting()
+                    writer.startSession(atSourceTime: adjustedPresentationTime)
+                default:
+                    break
+                }
+
+                if input.isReadyForMoreMediaData {
+                    if adaptor.append(pixelBuffer, withPresentationTime: adjustedPresentationTime) {
+                        self.videoPresentationTime = adjustedPresentationTime
+                        self.lastVideo = adjustedPresentationTime
+                    } else {
+                        self.delegate?.recorder(self, errorOccured: .failedToAppend(error: writer.error))
+                    }
+                }
+            } else {
+                guard
+                    let writer = self.writer,
+                    let input = self.makeWriterInput(.video, sourceFormatHint: CMVideoFormatDescription.create(pixelBuffer: pixelBuffer)),
+                    let adaptor = self.makePixelBufferAdaptor(input),
+                    self.isReadyForStartWriting && self.videoPresentationTime.seconds < withPresentationTime.seconds else {
+                    return
+                }
+
+                //print("original appendPixelBuffer");
+
+                switch writer.status {
+                case .unknown:
+                    writer.startWriting()
+                    writer.startSession(atSourceTime: withPresentationTime)
+                default:
+                    break
+                }
+
+                if input.isReadyForMoreMediaData {
+                    if adaptor.append(pixelBuffer, withPresentationTime: withPresentationTime) {
+                        self.videoPresentationTime = withPresentationTime
+                    } else {
+                        self.delegate?.recorder(self, errorOccured: .failedToAppend(error: writer.error))
+                    }
                 }
             }
         }
@@ -439,9 +501,10 @@ extension IORecorder: Running {
                 if let movieFragmentInterval = self.movieFragmentInterval {
                     self.writer?.movieFragmentInterval = CMTime(seconds: movieFragmentInterval, preferredTimescale: 1)
                 }
-                self.isPaused = false;
+                self.isPaused.mutate { $0 = false }
                 self.timeOffset = .zero
-                self.discont = false;
+                self.discontVideo.mutate { $0 = false }
+                self.discontAudio.mutate { $0 = false }
                 self.isRunning.mutate { $0 = true }
             } catch {
                 self.delegate?.recorder(self, errorOccured: .failedToCreateAssetWriter(error: error))
@@ -451,35 +514,36 @@ extension IORecorder: Running {
     
     public func pauseRunning() {
         lockQueue.async {
-            guard !self.isRunning.value else {
-                return
-            }
-            
             print("Pausing capture")
-            self.isPaused = true;
-            self.discont = true;
+            
+            self.isPaused.mutate { $0 = true }
+            self.discontVideo.mutate { $0 = true }
+            self.discontAudio.mutate { $0 = true }
+            
+            print("isPaused = \(self.isPaused.value)");
         }
     }
     
     public func enablePause() {
         lockQueue.async {
-            self.enableExperimentalPause = true;
+            self.enableExperimentalPause.mutate { $0 = true }
+            print("enablePause enableExperimentalPause = \(self.enableExperimentalPause.value)");
         }
     }
     
     public func disablePause() {
         lockQueue.async {
-            self.enableExperimentalPause = false;
+            self.enableExperimentalPause.mutate { $0 = false }
+
+            print("disablePause enableExperimentalPause = \(self.enableExperimentalPause.value)");
         }
     }
     
     public func resumeRunning() {
         lockQueue.async {
-            guard self.isPaused else {
-                return
-            }
             print("Resume capture")
-            self.isPaused = false;
+            self.isPaused.mutate { $0 = false }
+            print("isPaused = \(self.isPaused.value)");
         }
     }
     
