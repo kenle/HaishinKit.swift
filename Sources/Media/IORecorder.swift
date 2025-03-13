@@ -50,7 +50,7 @@ public class IORecorder {
     private var discontVideo: Bool = false
 
 
-    static private var enableExperimentalPause = true
+    static private var enableExperimentalPause = false
 
     private var timeOffsetAudio = CMTime.zero
     private var timeOffsetVideo = CMTime.zero
@@ -106,7 +106,7 @@ public class IORecorder {
                     return;
                 }
                 
-                //print("appendSampleBuffer \(mediaType)");
+                print("***experimental appendSampleBuffer \(mediaType)");
                 
                 
                 if self.discontAudio {
@@ -163,7 +163,7 @@ public class IORecorder {
                     return
                 }
                 
-                //print("original appendSampleBuffer \(mediaType)");
+                print("ORIGINAL appendSampleBuffer \(mediaType)");
 
                 
                 switch writer.status {
@@ -223,7 +223,7 @@ public class IORecorder {
                     return
                 }
 
-                //print("appendPixelBuffer");
+                print("*** experimental appendPixelBuffer");
                 
                 // based on adjusted audio sample buffer time, the withPresentationTime into this function should
                 // already be ajusted
@@ -272,7 +272,7 @@ public class IORecorder {
                     return
                 }
 
-                //print("original appendPixelBuffer");
+                print("ORIGINAL appendPixelBuffer");
 
                 switch writer.status {
                 case .unknown:
@@ -533,36 +533,30 @@ extension IORecorder: Running {
     
     public func pauseRunning() {
         lockQueue.async {
-            print("Pausing capture")
-            
+            //print("Pausing capture")
             self.isPaused = true
             self.discontVideo = true
             self.discontAudio = true
-
-            print("isPaused = \(self.isPaused)");
+            //print("isPaused = \(self.isPaused)");
         }
     }
     
     public func enablePause() {
-        lockQueue.async {
-            IORecorder.enableExperimentalPause = true
-            print("enablePause enableExperimentalPause = \(IORecorder.enableExperimentalPause)");
-        }
+        IORecorder.enableExperimentalPause = true
+        print("enablePause enableExperimentalPause = \(IORecorder.enableExperimentalPause)");
+        
     }
     
     public func disablePause() {
-        lockQueue.async {
-            IORecorder.enableExperimentalPause = false
-
-            print("disablePause enableExperimentalPause = \(IORecorder.enableExperimentalPause)");
-        }
+        IORecorder.enableExperimentalPause = false
+        print("disablePause enableExperimentalPause = \(IORecorder.enableExperimentalPause)");
     }
     
     public func resumeRunning() {
         lockQueue.async {
-            print("Resume capture")
+            //print("Resume capture")
             self.isPaused = false
-            print("isPaused = \(self.isPaused)");
+            //print("isPaused = \(self.isPaused)");
         }
     }
     
