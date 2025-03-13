@@ -97,19 +97,18 @@ public class IORecorder {
                 }
                 
                 if (self.isPaused) {
-                    print("paused returning, appendSampleBuffer \(mediaType)");
+                    //print("paused returning, appendSampleBuffer \(mediaType)");
 
                     return;
                 }
                 
-                print("appendSampleBuffer \(mediaType)");
+                //print("appendSampleBuffer \(mediaType)");
                 
-                /*
+                
                 if self.discont {
                     self.discont = false
                     self.timeOffset = CMTimeSubtract(CMSampleBufferGetPresentationTimeStamp(sampleBuffer), self.lastAudio)
                 }
-                */
                 
                 let adjustedBuffer = self.timeOffset.value > 0 ? self.adjustTime(of: sampleBuffer, by: self.timeOffset) ?? sampleBuffer : sampleBuffer
                 let pts = CMSampleBufferGetPresentationTimeStamp(adjustedBuffer)
@@ -211,23 +210,29 @@ public class IORecorder {
                     let writer = self.writer,
                     let input = self.makeWriterInput(.video, sourceFormatHint: CMVideoFormatDescription.create(pixelBuffer: pixelBuffer)),
                     let adaptor = self.makePixelBufferAdaptor(input),
-                    self.isReadyForStartWriting && self.videoPresentationTime.seconds < withPresentationTime.seconds else {
+                    self.isReadyForStartWriting else {
                     return
                 }
                 
                 if(self.isPaused) {
-                    print("paused returning, appendPixelBuffer");
+                    //print("paused returning, appendPixelBuffer");
                     return
                 }
 
-                print("appendPixelBuffer");
+                //print("appendPixelBuffer");
                 
-                if self.discont {
+                // based on adjusted audio sample buffer time, the withPresentationTime into this function should
+                // already be ajusted
+                /*if self.discont {
                     self.discont = false
                     self.timeOffset = CMTimeSubtract(withPresentationTime, self.lastVideo)
-                }
+                }*/
                 
                 let adjustedPresentationTime = self.timeOffset.value > 0 ? CMTimeSubtract(withPresentationTime, self.timeOffset) : withPresentationTime
+                
+                guard self.videoPresentationTime.seconds < adjustedPresentationTime.seconds else {
+                    return
+                }
                 
                 switch writer.status {
                 case .unknown:
@@ -238,13 +243,21 @@ public class IORecorder {
                 }
 
                 if input.isReadyForMoreMediaData {
-                    if adaptor.append(pixelBuffer, withPresentationTime: adjustedPresentationTime) {
-                        self.videoPresentationTime = adjustedPresentationTime
-                        self.lastVideo = adjustedPresentationTime
+                    //if(adjustedPresentationTime > self.lastVideo) {
+                        if adaptor.append(pixelBuffer, withPresentationTime: adjustedPresentationTime) {
+                            self.videoPresentationTime = adjustedPresentationTime
+                            self.lastVideo = adjustedPresentationTime
+                        } else {
+                            print("video append error");
+                            self.delegate?.recorder(self, errorOccured: .failedToAppend(error: writer.error))
+                        }
+                    /*
                     } else {
-                        print("video append error");
-                        self.delegate?.recorder(self, errorOccured: .failedToAppend(error: writer.error))
+                        self.videoPresentationTime = withPresentationTime
+                        self.lastVideo = withPresentationTime
+                        print("adjustedPresentationTime is less than last video time for some reason");
                     }
+                     */
                 }
             } else {
                 guard
