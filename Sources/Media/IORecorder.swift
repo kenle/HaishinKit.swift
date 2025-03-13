@@ -46,10 +46,13 @@ public class IORecorder {
     /// The running indicies whether recording or not.
     public private(set) var isRunning: Atomic<Bool> = .init(false)
     public private(set) var isPaused: Atomic<Bool> = .init(false)
-    public private(set) var discont: Atomic<Bool> = .init(false)
+    public private(set) var discontVideo: Atomic<Bool> = .init(false)
+    public private(set) var discontAudio: Atomic<Bool> = .init(false)
+
     static public private(set) var enableExperimentalPause: Atomic<Bool> = .init(true)
 
-    private var timeOffset = CMTime.zero
+    private var timeOffsetVideo = CMTime.zero
+    private var timeOffsetAudio = CMTime.zero
     private var lastVideo = CMTime.zero
     private var lastAudio = CMTime.zero
     
@@ -107,12 +110,15 @@ public class IORecorder {
                     return
                 }
                 
-                if self.discont.value {
-                    self.discont.mutate { $0 = false }
-                    self.timeOffset = CMTimeSubtract(CMSampleBufferGetPresentationTimeStamp(sampleBuffer), self.lastVideo)
+                
+                if mediaType == .audio {
+                    if self.discontAudio.value {
+                        self.discontAudio.mutate { $0 = false }
+                        self.timeOffsetAudio = CMTimeSubtract(CMSampleBufferGetPresentationTimeStamp(sampleBuffer), self.lastAudio)
+                    }
                 }
                 
-                let adjustedBuffer = self.timeOffset.value > 0 ? self.adjustTime(of: sampleBuffer, by: self.timeOffset) ?? sampleBuffer : sampleBuffer
+                let adjustedBuffer = self.timeOffsetAudio.value > 0 ? self.adjustTime(of: sampleBuffer, by: self.timeOffsetAudio) ?? sampleBuffer : sampleBuffer
                 let pts = CMSampleBufferGetPresentationTimeStamp(adjustedBuffer)
                 
                 switch writer.status {
@@ -185,6 +191,7 @@ public class IORecorder {
                         if input.append(sampleBuffer) {
                             self.audioPresentationTime = sampleBuffer.presentationTimeStamp
                         } else {
+                            print("audio append error");
                             self.delegate?.recorder(self, errorOccured: .failedToAppend(error: writer.error))
                         }
                     case .video:
@@ -225,12 +232,14 @@ public class IORecorder {
                     return
                 }
 
-                if self.discont.value {
-                    self.discont.mutate { $0 = false }
-                    self.timeOffset = CMTimeSubtract(withPresentationTime, self.lastVideo)
+                
+                if self.discontVideo.value {
+                    self.discontVideo.mutate { $0 = false }
+                    self.timeOffsetVideo = CMTimeSubtract(withPresentationTime, self.lastVideo)
                 }
+                
 
-                let adjustedPresentationTime = self.timeOffset.value > 0 ? CMTimeSubtract(withPresentationTime, self.timeOffset) : withPresentationTime
+                let adjustedPresentationTime = self.timeOffsetVideo.value > 0 ? CMTimeSubtract(withPresentationTime, self.timeOffsetVideo) : withPresentationTime
 
                 switch writer.status {
                 case .unknown:
@@ -245,6 +254,7 @@ public class IORecorder {
                         self.videoPresentationTime = adjustedPresentationTime
                         self.lastVideo = adjustedPresentationTime
                     } else {
+                        print("video append error");
                         self.delegate?.recorder(self, errorOccured: .failedToAppend(error: writer.error))
                     }
                 }
@@ -500,9 +510,15 @@ extension IORecorder: Running {
                 if let movieFragmentInterval = self.movieFragmentInterval {
                     self.writer?.movieFragmentInterval = CMTime(seconds: movieFragmentInterval, preferredTimescale: 1)
                 }
+
+                self.timeOffsetVideo = CMTime.zero
+                self.timeOffsetAudio = CMTime.zero
+                self.lastVideo = CMTime.zero
+                self.lastAudio = CMTime.zero
                 self.isPaused.mutate { $0 = false }
-                self.timeOffset = .zero
-                self.discont.mutate { $0 = false }
+                self.discontVideo.mutate { $0 = false }
+                self.discontAudio.mutate { $0 = false }
+                
                 self.isRunning.mutate { $0 = true }
             } catch {
                 self.delegate?.recorder(self, errorOccured: .failedToCreateAssetWriter(error: error))
@@ -515,7 +531,8 @@ extension IORecorder: Running {
             print("Pausing capture")
             
             self.isPaused.mutate { $0 = true }
-            self.discont.mutate { $0 = true }
+            self.discontVideo.mutate { $0 = true }
+            self.discontAudio.mutate { $0 = true }
             
             print("isPaused = \(self.isPaused.value)");
         }
@@ -558,11 +575,14 @@ extension IORecorder: Running {
                 return
             }
             
-            self.timeOffset = CMTime.zero
+            self.timeOffsetVideo = CMTime.zero
+            self.timeOffsetAudio = CMTime.zero
             self.lastVideo = CMTime.zero
             self.lastAudio = CMTime.zero
             self.isPaused.mutate { $0 = false }
-            self.discont.mutate { $0 = false }
+            self.discontVideo.mutate { $0 = false }
+            self.discontAudio.mutate { $0 = false }
+
 
             self.finishWriting()
             self.isRunning.mutate { $0 = false }
