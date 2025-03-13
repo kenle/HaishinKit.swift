@@ -47,9 +47,9 @@ public class IORecorder {
     public private(set) var isRunning: Atomic<Bool> = .init(false)
     private var isPaused: Bool = false
     private var discont: Bool = false
-
-    static private var enableExperimentalPause = true
-
+    
+    static private var enableExperimentalPause = false
+    
     private var timeOffset = CMTime.zero
     private var lastVideo = CMTime.zero
     private var lastAudio = CMTime.zero
@@ -89,21 +89,16 @@ public class IORecorder {
     public func appendSampleBuffer(_ sampleBuffer: CMSampleBuffer, mediaType: AVMediaType) {
         lockQueue.async {
             if(IORecorder.enableExperimentalPause) {
+                if (self.isPaused) {
+                    return;
+                }
+                
                 guard
                     let writer = self.writer,
                     let input = self.makeWriterInput(mediaType, sourceFormatHint: sampleBuffer.formatDescription),
                     self.isReadyForStartWriting else {
                     return
                 }
-                
-                if (self.isPaused) {
-                    //print("paused returning, appendSampleBuffer \(mediaType)");
-
-                    return;
-                }
-                
-                //print("appendSampleBuffer \(mediaType)");
-                
                 
                 if self.discont {
                     self.discont = false
@@ -144,7 +139,6 @@ public class IORecorder {
                         if input.append(adjustedBuffer) {
                             self.videoPresentationTime = adjustedBuffer.presentationTimeStamp
                         } else {
-                            print("  wtf video error");
                             self.delegate?.recorder(self, errorOccured: .failedToAppend(error: writer.error))
                         }
                     default:
@@ -158,9 +152,6 @@ public class IORecorder {
                     self.isReadyForStartWriting else {
                     return
                 }
-                
-                //print("original appendSampleBuffer \(mediaType)");
-
                 
                 switch writer.status {
                 case .unknown:
@@ -184,7 +175,6 @@ public class IORecorder {
                         if input.append(sampleBuffer) {
                             self.audioPresentationTime = sampleBuffer.presentationTimeStamp
                         } else {
-                            print("audio append error");
                             self.delegate?.recorder(self, errorOccured: .failedToAppend(error: writer.error))
                         }
                     case .video:
@@ -204,8 +194,11 @@ public class IORecorder {
     /// Append a pixel buffer for recording.
     public func appendPixelBuffer(_ pixelBuffer: CVPixelBuffer, withPresentationTime: CMTime) {
         lockQueue.async {
-            //print("appendPixelBuffer, isPaused =\(self.isPaused.value), enableExperimentalPause=\(self.enableExperimentalPause.value)");
             if IORecorder.enableExperimentalPause {
+                if(self.isPaused) {
+                    return
+                }
+                
                 guard
                     let writer = self.writer,
                     let input = self.makeWriterInput(.video, sourceFormatHint: CMVideoFormatDescription.create(pixelBuffer: pixelBuffer)),
@@ -214,22 +207,10 @@ public class IORecorder {
                     return
                 }
                 
-                if(self.isPaused) {
-                    //print("paused returning, appendPixelBuffer");
-                    return
-                }
-
-                //print("appendPixelBuffer");
-                
-                // based on adjusted audio sample buffer time, the withPresentationTime into this function should
-                // already be ajusted
-                /*if self.discont {
-                    self.discont = false
-                    self.timeOffset = CMTimeSubtract(withPresentationTime, self.lastVideo)
-                }*/
-                
+                // offset was already calculated with audio sample buffer time
                 let adjustedPresentationTime = self.timeOffset.value > 0 ? CMTimeSubtract(withPresentationTime, self.timeOffset) : withPresentationTime
                 
+                // important to use this guard against the adjustedPresentationTime and not the withPresentationTime
                 guard self.videoPresentationTime.seconds < adjustedPresentationTime.seconds else {
                     return
                 }
@@ -241,23 +222,15 @@ public class IORecorder {
                 default:
                     break
                 }
-
+                
                 if input.isReadyForMoreMediaData {
-                    //if(adjustedPresentationTime > self.lastVideo) {
-                        if adaptor.append(pixelBuffer, withPresentationTime: adjustedPresentationTime) {
-                            self.videoPresentationTime = adjustedPresentationTime
-                            self.lastVideo = adjustedPresentationTime
-                        } else {
-                            print("video append error");
-                            self.delegate?.recorder(self, errorOccured: .failedToAppend(error: writer.error))
-                        }
-                    /*
+                    if adaptor.append(pixelBuffer, withPresentationTime: adjustedPresentationTime) {
+                        self.videoPresentationTime = adjustedPresentationTime
+                        self.lastVideo = adjustedPresentationTime
                     } else {
-                        self.videoPresentationTime = withPresentationTime
-                        self.lastVideo = withPresentationTime
-                        print("adjustedPresentationTime is less than last video time for some reason");
+                        //print("video append error");
+                        self.delegate?.recorder(self, errorOccured: .failedToAppend(error: writer.error))
                     }
-                     */
                 }
             } else {
                 guard
@@ -267,9 +240,7 @@ public class IORecorder {
                     self.isReadyForStartWriting && self.videoPresentationTime.seconds < withPresentationTime.seconds else {
                     return
                 }
-
-                //print("original appendPixelBuffer");
-
+                
                 switch writer.status {
                 case .unknown:
                     writer.startWriting()
@@ -277,7 +248,7 @@ public class IORecorder {
                 default:
                     break
                 }
-
+                
                 if input.isReadyForMoreMediaData {
                     if adaptor.append(pixelBuffer, withPresentationTime: withPresentationTime) {
                         self.videoPresentationTime = withPresentationTime
@@ -511,7 +482,7 @@ extension IORecorder: Running {
                 if let movieFragmentInterval = self.movieFragmentInterval {
                     self.writer?.movieFragmentInterval = CMTime(seconds: movieFragmentInterval, preferredTimescale: 1)
                 }
-
+                
                 self.timeOffset = CMTime.zero
                 self.lastVideo = CMTime.zero
                 self.lastAudio = CMTime.zero
@@ -537,18 +508,13 @@ extension IORecorder: Running {
     }
     
     public func enablePause() {
-        lockQueue.async {
-            IORecorder.enableExperimentalPause = true
-            print("enablePause enableExperimentalPause = \(IORecorder.enableExperimentalPause)");
-        }
+        IORecorder.enableExperimentalPause = true
+        print("enablePause enableExperimentalPause = \(IORecorder.enableExperimentalPause)");
     }
     
     public func disablePause() {
-        lockQueue.async {
-            IORecorder.enableExperimentalPause = false
-
-            print("disablePause enableExperimentalPause = \(IORecorder.enableExperimentalPause)");
-        }
+        IORecorder.enableExperimentalPause = false
+        print("disablePause enableExperimentalPause = \(IORecorder.enableExperimentalPause)");
     }
     
     public func resumeRunning() {
@@ -578,7 +544,7 @@ extension IORecorder: Running {
             self.lastAudio = CMTime.zero
             self.isPaused = false
             self.discont = false
-
+            
             self.finishWriting()
             self.isRunning.mutate { $0 = false }
         }
