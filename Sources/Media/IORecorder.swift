@@ -12,6 +12,7 @@ public protocol IORecorderDelegate: AnyObject {
 /// The IORecorder class represents video and audio recorder.
 public class IORecorder {
     private static let interpolationThreshold = 1024 * 4
+    public static enableExperimentalPause = false;
 
     /// The IORecorder error domain codes.
     public enum Error: Swift.Error {
