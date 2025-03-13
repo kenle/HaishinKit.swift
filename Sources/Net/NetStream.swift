@@ -260,6 +260,14 @@ open class NetStream: NSObject {
         mixer.recorder.resumeRunning();
     }
 
+    public func enablePause() {
+        mixer.recorder.enablePause();
+    }
+
+    public func disablePause() {
+        mixer.recorder.disablePause();
+    }
+
     /// Stop recording.
     public func stopRecording() {
         mixer.recorder.stopRunning()

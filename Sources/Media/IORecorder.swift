@@ -12,7 +12,6 @@ public protocol IORecorderDelegate: AnyObject {
 /// The IORecorder class represents video and audio recorder.
 public class IORecorder {
     private static let interpolationThreshold = 1024 * 4
-    public static enableExperimentalPause = false;
 
     /// The IORecorder error domain codes.
     public enum Error: Swift.Error {
@@ -49,6 +48,7 @@ public class IORecorder {
 
     private var isPaused = false
     private var discont = false
+    private enableExperimentalPause = false;
     private var timeOffset = CMTime.zero
     private var lastVideo = CMTime.zero
     private var lastAudio = CMTime.zero
@@ -414,6 +414,18 @@ extension IORecorder: Running {
             print("Pausing capture")
             self.isPaused = true;
             self.discont = true;
+        }
+    }
+
+    public func enablePause() {
+        lockQueue.async {
+            self.enableExperimentalPause = true;
+        }
+    }
+
+    public func disablePause() {
+        lockQueue.async {
+            self.enableExperimentalPause = false;
         }
     }
 
