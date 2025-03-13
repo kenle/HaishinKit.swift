@@ -106,16 +106,16 @@ public class IORecorder {
             switch writer.status {
             case .unknown:
                 writer.startWriting()
-                writer.startSession(atSourceTime: sampleBuffer.presentationTimeStamp)
+                writer.startSession(atSourceTime: adjustedBuffer.presentationTimeStamp)
             default:
                 break
             }
 
             // fix Local record audio desynchronization on camera switch
             if mediaType == .audio && self.audioPresentationTime != .zero {
-                if let sampleBuffer = self.makeAudioCMSampleBuffer(sampleBuffer), input.isReadyForMoreMediaData {
-                    input.append(sampleBuffer)
-                    self.audioPresentationTime = CMTimeAdd(self.audioPresentationTime, sampleBuffer.duration)
+                if let adjustedBuffer = self.makeAudioCMSampleBuffer(adjustedBuffer), input.isReadyForMoreMediaData {
+                    input.append(adjustedBuffer)
+                    self.audioPresentationTime = CMTimeAdd(self.audioPresentationTime, adjustedBuffer.duration)
                 }
             }
 
@@ -123,16 +123,16 @@ public class IORecorder {
                 switch mediaType {
                 case .audio:
                     lastAudio = pts
-                    if input.append(sampleBuffer) {
-                        self.audioPresentationTime = sampleBuffer.presentationTimeStamp
+                    if input.append(adjustedBuffer) {
+                        self.audioPresentationTime = adjustedBuffer.presentationTimeStamp
                     } else {
                         self.delegate?.recorder(self, errorOccured: .failedToAppend(error: writer.error))
 
                     }
                 case .video:
                     lastVideo = pts
-                    if input.append(sampleBuffer) {
-                        self.videoPresentationTime = sampleBuffer.presentationTimeStamp
+                    if input.append(adjustedBuffer) {
+                        self.videoPresentationTime = adjustedBuffer.presentationTimeStamp
                     } else {
                         self.delegate?.recorder(self, errorOccured: .failedToAppend(error: writer.error))
                     }
