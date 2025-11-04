@@ -202,7 +202,7 @@ public class VideoCodec {
                     logger.debug("VideoCodec: bitrate successfully updated to \(bitrate)")
                 } else {
                     // If VTSession refuses this option (usually -12912), mark session invalid
-                    logger.warning("VideoCodec: failed to set bitrate (\(status)), will recreate session")
+                    logger.debug("VideoCodec: failed to set bitrate (\(status)), will recreate session")
                     invalidateSession = true
                 }
             } else {
