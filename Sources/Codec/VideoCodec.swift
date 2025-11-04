@@ -190,7 +190,7 @@ public class VideoCodec {
             guard bitrate != oldValue else { return }
 
             // Log for debugging
-            logger.info("VideoCodec: bitrate change from \(oldValue) → \(bitrate)")
+            //logger.info("VideoCodec: bitrate change from \(oldValue) → \(bitrate)")
 
             let option = VTSessionOption(key: bitRateMode.key, value: NSNumber(value: bitrate))
 
@@ -199,15 +199,15 @@ public class VideoCodec {
                 let status = session.setOption(option)
 
                 if status == noErr {
-                    logger.debug("VideoCodec: bitrate successfully updated to \(bitrate)")
+                    //logger.debug("VideoCodec: bitrate successfully updated to \(bitrate)")
                 } else {
                     // If VTSession refuses this option (usually -12912), mark session invalid
-                    logger.debug("VideoCodec: failed to set bitrate (\(status)), will recreate session")
+                    //logger.debug("VideoCodec: failed to set bitrate (\(status)), will recreate session")
                     invalidateSession = true
                 }
             } else {
                 // No session yet; defer setting until session is built
-                logger.debug("VideoCodec: session not yet active, will apply bitrate later")
+                //logger.debug("VideoCodec: session not yet active, will apply bitrate later")
             }
         }
     }
