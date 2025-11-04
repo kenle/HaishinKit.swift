@@ -187,12 +187,27 @@ public class VideoCodec {
     #endif
     var bitrate = VideoCodec.defaultBitrate {
         didSet {
-            guard bitrate != oldValue else {
-                return
-            }
+            guard bitrate != oldValue else { return }
+
+            // Log for debugging
+            logger.info("VideoCodec: bitrate change from \(oldValue) → \(bitrate)")
+
             let option = VTSessionOption(key: bitRateMode.key, value: NSNumber(value: bitrate))
-            if let status = session?.setOption(option), status != noErr {
-                delegate?.videoCodec(self, errorOccurred: .failedToSetOption(status: status, option: option))
+
+            // Check if session exists and is valid before applying
+            if let session = session {
+                let status = session.setOption(option)
+
+                if status == noErr {
+                    logger.debug("VideoCodec: bitrate successfully updated to \(bitrate)")
+                } else {
+                    // If VTSession refuses this option (usually -12912), mark session invalid
+                    logger.warning("VideoCodec: failed to set bitrate (\(status)), will recreate session")
+                    invalidateSession = true
+                }
+            } else {
+                // No session yet; defer setting until session is built
+                logger.debug("VideoCodec: session not yet active, will apply bitrate later")
             }
         }
     }
