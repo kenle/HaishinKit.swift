@@ -1,54 +1,64 @@
 import Foundation
+import os.log
 
 final class DataBuffer {
+    private(set) var capacity: Int
+    private let baseCapacity: Int
+    private let maxCapacity: Int
+    private var data: Data
+    private var head = 0
+    private var tail = 0
+
+    init(capacity: Int, maxCapacity: Int? = nil) {
+        self.capacity = capacity
+        self.baseCapacity = capacity
+        self.maxCapacity = maxCapacity ?? capacity * 4 // limit to 4× by default
+        self.data = Data(repeating: 0, count: capacity)
+    }
+
     var bytes: UnsafePointer<UInt8>? {
         data.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) -> UnsafePointer<UInt8>? in
             bytes.baseAddress?.assumingMemoryBound(to: UInt8.self).advanced(by: head)
         }
     }
+
     var maxLength: Int {
         min(count, capacity - head)
     }
+
     private var count: Int {
         let value = tail - head
         return value < 0 ? value + capacity : value
     }
-    private var data: Data
-    private(set) var capacity: Int = 0 {
-        didSet {
-            logger.info("extends a buffer size from ", oldValue, " to ", capacity)
-        }
-    }
-    private var head: Int = 0
-    private var tail: Int = 0
-    private let baseCapacity: Int
-
-    init(capacity: Int) {
-        self.capacity = capacity
-        baseCapacity = capacity
-        data = .init(repeating: 0, count: capacity)
-    }
 
     @discardableResult
-    func append(_ data: Data) -> Bool {
-        guard data.count + count < capacity else {
-            return resize(data)
+    func append(_ newData: Data) -> Bool {
+        guard newData.count <= capacity else {
+            // If new data is larger than current capacity, try to resize or reject.
+            return resizeOrReject(newData)
         }
-        let count = data.count
-        let length = min(count, capacity - tail)
-        return self.data.withUnsafeMutableBytes { (bytes: UnsafeMutableRawBufferPointer) -> Bool in
+
+        guard newData.count + count < capacity else {
+            return resizeOrReject(newData)
+        }
+
+        return data.withUnsafeMutableBytes { (bytes: UnsafeMutableRawBufferPointer) -> Bool in
             guard let pointer = bytes.baseAddress?.assumingMemoryBound(to: UInt8.self) else {
                 return false
             }
-            data.copyBytes(to: pointer.advanced(by: tail), count: length)
-            if length < count {
-                tail = count - length
-                data.advanced(by: length).copyBytes(to: pointer, count: tail)
+
+            let len = newData.count
+            let firstChunk = min(len, capacity - tail)
+            newData.copyBytes(to: pointer.advanced(by: tail), count: firstChunk)
+
+            if firstChunk < len {
+                // wrapped write
+                let secondChunk = len - firstChunk
+                newData[firstChunk..<len].copyBytes(to: pointer, count: secondChunk)
+                tail = secondChunk
             } else {
-                tail += count
-            }
-            if capacity == tail {
-                tail = 0
+                tail += len
+                if tail == capacity { tail = 0 }
             }
             return true
         }
@@ -61,7 +71,7 @@ final class DataBuffer {
         } else {
             head += count
         }
-        if capacity == head {
+        if head == capacity {
             head = 0
         }
     }
@@ -71,22 +81,49 @@ final class DataBuffer {
         tail = 0
     }
 
-    private func resize(_ data: Data) -> Bool {
-        if 0 < head {
-            let subdata = self.data.subdata(in: 0..<tail)
-            self.data.replaceSubrange(0..<capacity - head, with: self.data.advanced(by: head))
-            self.data.replaceSubrange(capacity - head..<capacity - head + subdata.count, with: subdata)
-            tail = capacity - head + subdata.count
+    // --- Private Helpers ---
+
+    private func resizeOrReject(_ newData: Data) -> Bool {
+        // Avoid unbounded growth
+        guard capacity < maxCapacity else {
+            // Reached max capacity — reject or drop oldest data
+            os_log("DataBuffer full — rejecting new data (%d bytes)", newData.count)
+            return false
         }
-        self.data.append(.init(count: baseCapacity))
+
+        // Safe resize: double the capacity up to the max limit
+        let newCapacity = min(capacity * 2, maxCapacity)
+        os_log("Resizing buffer from %d to %d", capacity, newCapacity)
+
+        var newDataStore = Data(repeating: 0, count: newCapacity)
+        let currentCount = count
+
+        // Copy existing bytes contiguously into newDataStore
+        data.withUnsafeBytes { src in
+            newDataStore.withUnsafeMutableBytes { dst in
+                guard let srcPtr = src.baseAddress?.assumingMemoryBound(to: UInt8.self),
+                      let dstPtr = dst.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return }
+
+                if head < tail {
+                    memcpy(dstPtr, srcPtr.advanced(by: head), currentCount)
+                } else if currentCount > 0 {
+                    let firstLen = capacity - head
+                    memcpy(dstPtr, srcPtr.advanced(by: head), firstLen)
+                    memcpy(dstPtr.advanced(by: firstLen), srcPtr, tail)
+                }
+            }
+        }
+
+        data = newDataStore
+        capacity = newCapacity
         head = 0
-        capacity = self.data.count
-        return append(data)
+        tail = currentCount
+        return append(newData)
     }
 }
 
 extension DataBuffer: CustomDebugStringConvertible {
     var debugDescription: String {
-        Mirror(reflecting: self).debugDescription
+        "DataBuffer(capacity: \(capacity), head: \(head), tail: \(tail), count: \(count))"
     }
 }
