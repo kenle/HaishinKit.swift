@@ -1,13 +1,14 @@
 Pod::Spec.new do |s|
-  s.name             = 'HaishinKit'
-  s.version          = '2.2.4.5'   # Bump version for the new setup (or use 2.2.4.3 if you prefer, but new tag recommended)
-  s.summary          = 'Camera and Microphone streaming library core via RTMP, HLS, SRT for iOS, tvOS, macOS, visionOS.'
+  s.name             = 'RTMPHaishinKit'
+  s.version          = '2.2.4.5'   # Must match the core version/tag
+  s.summary          = 'RTMP streaming extension for HaishinKit'
   s.description      = <<-DESC
-                       HaishinKit core framework (shared utilities, camera, audio handling).
+                       RTMPHaishinKit provides RTMP publishing and playback capabilities
+                       built on top of HaishinKit core.
                        DESC
   s.homepage         = 'https://github.com/kenle/HaishinKit.swift'
   s.license          = { :type => 'BSD', :file => 'LICENSE' }
-  s.author           = { 'shogo4405' => 'shogo4405@gmail.com' }  # or your details
+  s.author           = { 'shogo4405' => 'shogo4405@gmail.com' }
 
   s.source           = { :git => 'https://github.com/kenle/HaishinKit.swift.git', :tag => s.version.to_s }
 
@@ -21,8 +22,8 @@ Pod::Spec.new do |s|
     'SWIFT_STRICT_CONCURRENCY' => 'minimal'
   }
 
-  # Core sources only
-  s.source_files = 'HaishinKit/Sources/**/*.{swift,h,m,c}'
+  s.source_files     = 'RTMPHaishinKit/Sources/**/*.{swift,h,m,c}'
 
-  s.dependency 'Logboard', '~> 2.6'
+  # Depends on the core pod (same version)
+  s.dependency 'HaishinKit', "= #{s.version}"
 end
