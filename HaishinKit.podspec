@@ -50,4 +50,3 @@ RTMP, HLS, WebRTC, SRT, and MoQT. Supports iOS, macOS, tvOS, Mac Catalyst, and v
     ss.dependency "HaishinKit"
   end
 end
-Pod::Spec.new do |s|
