@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name         = 'HaishinKit'
-  s.version      = '2.2.4.1'   # update to '2.2.4.2' for the new tag
+  s.version      = '2.2.4.2'   # update to '2.2.4.2' for the new tag
   s.summary      = 'Camera and Microphone streaming library via RTMP, HLS, etc.'
   s.homepage     = 'https://github.com/kenle/HaishinKit.swift'
   s.license      = { :type => 'BSD', :file => 'LICENSE.md' }
