@@ -13,10 +13,6 @@ RTMP, HLS, WebRTC, SRT, and MoQT. Supports iOS, macOS, tvOS, Mac Catalyst, and v
 
   # Deployment targets
   s.ios.deployment_target       = "15.0"
-  s.osx.deployment_target       = "12.0"
-  s.tvos.deployment_target      = "15.0"
-  s.maccatalyst.deployment_target = "15.0"
-  s.visionos.deployment_target  = "1.0"
 
   # Core HaishinKit
   s.subspec "HaishinKit" do |ss|
