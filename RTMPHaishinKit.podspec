@@ -17,6 +17,6 @@ RTMP, HLS, WebRTC, SRT, and MoQT. Supports iOS, macOS, tvOS, Mac Catalyst, and v
   # RTMP
   s.subspec "RTMPHaishinKit" do |ss|
     ss.source_files = "RTMPHaishinKit/Sources/**/*.{swift,h}"
-    ss.dependency "HaishinKit"
+    #ss.dependency "HaishinKit"
   end
 end
