@@ -19,30 +19,4 @@ RTMP, HLS, WebRTC, SRT, and MoQT. Supports iOS, macOS, tvOS, Mac Catalyst, and v
     ss.source_files = "HaishinKit/Sources/**/*.{swift,h}"
     ss.dependency 'Logboard', '~> 2.6'
   end
-
-  # RTMP
-  s.subspec "RTMPHaishinKit" do |ss|
-    ss.source_files = "RTMPHaishinKit/Sources/**/*.{swift,h}"
-    # ss.dependency "HaishinKit"  <-- remove this
-  end
-
-  # SRT
-  s.subspec "SRTHaishinKit" do |ss|
-    ss.source_files = "SRTHaishinKit/Sources/**/*.{swift,h}"
-    ss.vendored_frameworks = "https://github.com/HaishinKit/libsrt-xcframework/releases/download/v1.5.4/libsrt.xcframework.zip"
-    # ss.dependency "HaishinKit"  <-- remove this
-  end
-
-  # MoQT
-  s.subspec "MoQTHaishinKit" do |ss|
-    ss.source_files = "MoQTHaishinKit/Sources/**/*.{swift,h}"
-    # ss.dependency "HaishinKit"  <-- remove this
-  end
-
-  # WebRTC
-  s.subspec "RTCHaishinKit" do |ss|
-    ss.source_files = "RTCHaishinKit/Sources/**/*.{swift,h}"
-    ss.vendored_frameworks = "https://github.com/HaishinKit/libdatachannel-xcframework/releases/download/v0.24.0/libdatachannel.xcframework.zip"
-    # ss.dependency "HaishinKit"  <-- remove this
-  end
 end
