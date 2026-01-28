@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'RTCHaishinKit'
-  s.version          = '2.2.4.8'  # Must match the core version/tag
+  s.version          = '2.2.4.9'  # Must match the core version/tag
   s.summary          = 'WebRTC extension for HaishinKit'
   s.description      = <<-DESC
                        RTCHaishinKit provides WebRTC-based streaming and connectivity
@@ -22,7 +22,7 @@ Pod::Spec.new do |s|
   }
 
   s.source_files          = 'RTCHaishinKit/Sources/**/*.{swift,h,m,c}'
-  s.vendored_frameworks   = 'libdatachannel.xcframework'  # Adjust path if it's in a subfolder, e.g. 'Vendor/WebRTC/libdatachannel.xcframework'
+  s.vendored_frameworks   = 'Vendor/libdatachannel.xcframework'  # Adjust path if it's in a subfolder, e.g. 'Vendor/WebRTC/libdatachannel.xcframework'
 
   s.dependency            'HaishinKit', "= #{s.version}"
 end

@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'RTMPHaishinKit'
-  s.version          = '2.2.4.8'   # Must match the core version/tag
+  s.version          = '2.2.4.9'   # Must match the core version/tag
   s.summary          = 'RTMP streaming extension for HaishinKit'
   s.description      = <<-DESC
                        RTMPHaishinKit provides RTMP publishing and playback capabilities

@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'HaishinKit'
-  s.version          = '2.2.4.8'   # Bump version for the new setup (or use 2.2.4.3 if you prefer, but new tag recommended)
+  s.version          = '2.2.4.9'   # Bump version for the new setup (or use 2.2.4.3 if you prefer, but new tag recommended)
   s.summary          = 'Camera and Microphone streaming library core via RTMP, HLS, SRT for iOS, tvOS, macOS, visionOS.'
   s.description      = <<-DESC
                        HaishinKit core framework (shared utilities, camera, audio handling).

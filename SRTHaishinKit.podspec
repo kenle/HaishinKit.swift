@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'SRTHaishinKit'
-  s.version          = '2.2.4.8'  # Must match the core version/tag
+  s.version          = '2.2.4.9'  # Must match the core version/tag
   s.summary          = 'SRT streaming extension for HaishinKit'
   s.description      = <<-DESC
                        SRTHaishinKit provides SRT (Secure Reliable Transport) capabilities
@@ -22,7 +22,7 @@ Pod::Spec.new do |s|
   }
 
   s.source_files          = 'SRTHaishinKit/Sources/**/*.{swift,h,m,c}'
-  s.vendored_frameworks   = 'libsrt.xcframework'  # Adjust path if needed, e.g. 'Vendor/SRT/libsrt.xcframework'
+  s.vendored_frameworks   = 'Vendor/libsrt.xcframework'  # Adjust path if needed, e.g. 'Vendor/SRT/libsrt.xcframework'
 
   s.dependency            'HaishinKit', "= #{s.version}"
 end
