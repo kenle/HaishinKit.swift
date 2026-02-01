@@ -30,7 +30,7 @@ struct RTMPSharedObjectEvent {
         self.data = data
     }
 
-    init?(serializer: inout AMFSerializer) throws {
+    init?(serializer: inout any AMFSerializer) throws {
         guard let byte: UInt8 = try? serializer.readUInt8(), let type = RTMPSharedObjectType(rawValue: byte) else {
             return nil
         }
@@ -50,7 +50,7 @@ struct RTMPSharedObjectEvent {
         }
     }
 
-    func serialize(_ serializer: inout AMFSerializer) {
+    func serialize(_ serializer: inout any AMFSerializer) {
         serializer.writeUInt8(type.rawValue)
         guard let name: String = name else {
             serializer.writeUInt32(0)
@@ -79,7 +79,7 @@ extension RTMPSharedObjectEvent: CustomDebugStringConvertible {
 
 // MARK: -
 /// The RTMPSharedObject class is used to read and write data on a server.
-public class RTMPSharedObject: EventDispatcher {
+public final class RTMPSharedObject: EventDispatcher {
     private static var remoteSharedObjects: [String: RTMPSharedObject] = [:]
 
     /// Returns a reference to a shared object on a server.
