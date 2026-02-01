@@ -301,11 +301,7 @@ public class RTMPConnection: EventDispatcher {
         case "rtmpt", "rtmpts":
             socket = socket is RTMPTSocket ? socket : RTMPTSocket()
         default:
-            if #available(iOS 12.0, macOS 10.14, tvOS 12.0, *), requireNetworkFramework {
-                socket = socket is RTMPNWSocket ? socket : RTMPNWSocket()
-            } else {
-                socket = socket is RTMPSocket ? socket : RTMPSocket()
-            }
+            socket = socket is RTMPNWSocket ? socket : RTMPNWSocket()
         }
         socket.delegate = self
         var outputBufferSize: Int = 0
