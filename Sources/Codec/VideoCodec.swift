@@ -281,14 +281,11 @@ public class VideoCodec {
             guard let sampleBuffer, status == noErr else {
                 delegate?.videoCodec(self, errorOccurred: .failedToFlame(status: status))
 
-                if status == -12909 || status == -12911 { // Common recoverable - add more as seen
-                    invalidateSession = true // Restart session
-                    // Retry logic: e.g., resend last frame or just continue
-                    // Hide spinner after 2-3 sec if isRunning
-                } else {
-                    // Fatal: show spinner, perhaps close stream
-                }
-
+                // kenle 2026 added because if get failedToFlame session cannot recover
+                // even if network speeds recover, make a new session to recover
+                invalidateSession = true // Restart session
+                print("invalidateSession = true");
+            
                 return
             }
             formatDescription = sampleBuffer.formatDescription
@@ -308,13 +305,10 @@ public class VideoCodec {
             guard let imageBuffer = imageBuffer, status == noErr else {
                 self.delegate?.videoCodec(self, errorOccurred: .failedToFlame(status: status))
 
-                if status == -12909 || status == -12911 { // Common recoverable - add more as seen
-                    invalidateSession = true // Restart session
-                    // Retry logic: e.g., resend last frame or just continue
-                    // Hide spinner after 2-3 sec if isRunning
-                } else {
-                    // Fatal: show spinner, perhaps close stream
-                }
+                // kenle 2026 added because if get failedToFlame session cannot recover
+                // even if network speeds recover, make a new session to recover
+                invalidateSession = true // Restart session
+                print("invalidateSession = true");
 
                 return
             }
@@ -335,13 +329,10 @@ public class VideoCodec {
             guard status == noErr else {
                 delegate?.videoCodec(self, errorOccurred: .failedToFlame(status: status))
 
-                if status == -12909 || status == -12911 { // Common recoverable - add more as seen
-                    invalidateSession = true // Restart session
-                    // Retry logic: e.g., resend last frame or just continue
-                    // Hide spinner after 2-3 sec if isRunning
-                } else {
-                    // Fatal: show spinner, perhaps close stream
-                }
+                // kenle 2026 added because if get failedToFlame session cannot recover
+                // even if network speeds recover, make a new session to recover
+                invalidateSession = true // Restart session
+                print("invalidateSession = true");
 
                 return
             }
@@ -361,13 +352,10 @@ public class VideoCodec {
             guard let buffer = sampleBuffer, status == noErr else {
                 delegate?.videoCodec(self, errorOccurred: .failedToFlame(status: status))
 
-                if status == -12909 || status == -12911 { // Common recoverable - add more as seen
-                    invalidateSession = true // Restart session
-                    // Retry logic: e.g., resend last frame or just continue
-                    // Hide spinner after 2-3 sec if isRunning
-                } else {
-                    // Fatal: show spinner, perhaps close stream
-                }
+                // kenle 2026 added because if get failedToFlame session cannot recover
+                // even if network speeds recover, make a new session to recover
+                invalidateSession = true // Restart session
+                print("invalidateSession = true");
 
                 return
             }
