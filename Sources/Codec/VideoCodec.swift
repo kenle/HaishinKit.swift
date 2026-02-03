@@ -280,6 +280,15 @@ public class VideoCodec {
         ) { [unowned self] status, _, sampleBuffer in
             guard let sampleBuffer, status == noErr else {
                 delegate?.videoCodec(self, errorOccurred: .failedToFlame(status: status))
+
+                if status == -12909 || status == -12911 { // Common recoverable - add more as seen
+                    invalidateSession = true // Restart session
+                    // Retry logic: e.g., resend last frame or just continue
+                    // Hide spinner after 2-3 sec if isRunning
+                } else {
+                    // Fatal: show spinner, perhaps close stream
+                }
+
                 return
             }
             formatDescription = sampleBuffer.formatDescription
@@ -298,6 +307,15 @@ public class VideoCodec {
         session?.inputBuffer(sampleBuffer) { [unowned self] status, _, imageBuffer, presentationTimeStamp, duration in
             guard let imageBuffer = imageBuffer, status == noErr else {
                 self.delegate?.videoCodec(self, errorOccurred: .failedToFlame(status: status))
+
+                if status == -12909 || status == -12911 { // Common recoverable - add more as seen
+                    invalidateSession = true // Restart session
+                    // Retry logic: e.g., resend last frame or just continue
+                    // Hide spinner after 2-3 sec if isRunning
+                } else {
+                    // Fatal: show spinner, perhaps close stream
+                }
+
                 return
             }
 
@@ -316,6 +334,15 @@ public class VideoCodec {
 
             guard status == noErr else {
                 delegate?.videoCodec(self, errorOccurred: .failedToFlame(status: status))
+
+                if status == -12909 || status == -12911 { // Common recoverable - add more as seen
+                    invalidateSession = true // Restart session
+                    // Retry logic: e.g., resend last frame or just continue
+                    // Hide spinner after 2-3 sec if isRunning
+                } else {
+                    // Fatal: show spinner, perhaps close stream
+                }
+
                 return
             }
 
@@ -333,6 +360,15 @@ public class VideoCodec {
 
             guard let buffer = sampleBuffer, status == noErr else {
                 delegate?.videoCodec(self, errorOccurred: .failedToFlame(status: status))
+
+                if status == -12909 || status == -12911 { // Common recoverable - add more as seen
+                    invalidateSession = true // Restart session
+                    // Retry logic: e.g., resend last frame or just continue
+                    // Hide spinner after 2-3 sec if isRunning
+                } else {
+                    // Fatal: show spinner, perhaps close stream
+                }
+
                 return
             }
 
