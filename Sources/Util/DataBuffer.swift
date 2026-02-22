@@ -1,6 +1,9 @@
 import Foundation
 
 final class DataBuffer {
+    // kenle 2026 added to prevent crash
+    private let maxAllowedCapacity: Int = 25 * 1_000_000;
+    
     var bytes: UnsafePointer<UInt8>? {
         data.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) -> UnsafePointer<UInt8>? in
             bytes.baseAddress?.assumingMemoryBound(to: UInt8.self).advanced(by: head)
@@ -72,6 +75,14 @@ final class DataBuffer {
     }
 
     private func resize(_ data: Data) -> Bool {
+        let wouldBeNewCapacity = capacity + baseCapacity
+                if wouldBeNewCapacity > maxAllowedCapacity {
+                    // Buffer has reached hard limit → cannot add more
+                    // You can optionally log here:
+                    // logger.warning("Buffer at hard limit \(capacity / 1_000_000) MB – dropping \(data.count) bytes")
+                    return false
+                }
+        
         if 0 < head {
             let subdata = self.data.subdata(in: 0..<tail)
             self.data.replaceSubrange(0..<capacity - head, with: self.data.advanced(by: head))
