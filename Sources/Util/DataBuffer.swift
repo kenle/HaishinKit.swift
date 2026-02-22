@@ -2,7 +2,7 @@ import Foundation
 
 final class DataBuffer {
     // kenle 2026 added to prevent crash
-    private let maxAllowedCapacity: Int = 25 * 1_000_000;
+    private let maxAllowedCapacity: Int = 30 * 1_000_000;
     
     var bytes: UnsafePointer<UInt8>? {
         data.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) -> UnsafePointer<UInt8>? in
