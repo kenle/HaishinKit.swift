@@ -268,6 +268,14 @@ open class NetStream: NSObject {
         mixer.recorder.disablePause();
     }
 
+    public func enableDataBufferMaxCapacity() {
+        DataBuffer.enableMaxCapacity = true;
+    }
+
+    public func disableDataBufferMaxCapacity() {
+        DataBuffer.enableMaxCapacity = false;
+    }
+
     /// Stop recording.
     public func stopRecording() {
         mixer.recorder.stopRunning()
