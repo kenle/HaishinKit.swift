@@ -2,7 +2,27 @@ import Foundation
 
 final class DataBuffer {
     // kenle 2026 added to prevent crash
-    private let maxAllowedCapacity: Int = 30 * 1_000_000;
+    public static let defaultMaxCapacity: Int = {
+        let totalRAM = ProcessInfo.processInfo.physicalMemory
+        let proposed = Int(Double(totalRAM) * 0.05)
+        var maxCapacity: Int = min(max(proposed, 30_000_000), 250_000_000);
+        print("DataBuffer defaultMaxCapacity = \(defaultMaxCapacity)");
+        return maxCapacity;
+    }()
+
+    // Public mutable override — start with the computed default
+    static var maxAllowedCapacity: Int = defaultMaxCapacity {
+        didSet {
+            logger.info("maxAllowedCapacity manually changed to \(maxAllowedCapacity / 1_000_000) MB")
+        }
+    }
+
+    // Optional: convenience to reset to device-default
+    static func resetMaxToDeviceDefault() {
+        maxAllowedCapacity = defaultMaxCapacity
+    }
+    
+    //static var maxAllowedCapacity: Int = 30 * 1_000_000;
     static var enableMaxCapacity = true;
     
     var bytes: UnsafePointer<UInt8>? {
@@ -78,7 +98,7 @@ final class DataBuffer {
     private func resize(_ data: Data) -> Bool {
         let wouldBeNewCapacity = capacity + baseCapacity;
 
-        if (DataBuffer.enableMaxCapacity && (wouldBeNewCapacity > maxAllowedCapacity)) {
+        if (DataBuffer.enableMaxCapacity && (wouldBeNewCapacity > DataBuffer.maxAllowedCapacity)) {
             // Buffer has reached hard limit → cannot add more
             // You can optionally log here:
             // logger.warning("Buffer at hard limit \(capacity / 1_000_000) MB – dropping \(data.count) bytes")

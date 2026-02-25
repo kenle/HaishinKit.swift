@@ -267,13 +267,37 @@ open class NetStream: NSObject {
     public func disablePause() {
         mixer.recorder.disablePause();
     }
+    
+    public func setDataBufferMaxCapacity(maxCapacity: Int?) {
+        if(maxCapacity == nil) {
+            return;
+        }
+         
+        if(maxCapacity! < 30_000_000) {
+            DataBuffer.maxAllowedCapacity = 30_000_000;
+        } else {
+            DataBuffer.maxAllowedCapacity = maxCapacity!;
+        }
+        print("setDataBufferMaxCapacity() DataBuffer.maxAllowedCapacity = \(DataBuffer.maxAllowedCapacity)");
+    }
 
     public func enableDataBufferMaxCapacity() {
         DataBuffer.enableMaxCapacity = true;
+        print("enableDataBufferMaxCapacity() DataBuffer.enableMaxCapacity = \(DataBuffer.enableMaxCapacity)");
+
     }
 
     public func disableDataBufferMaxCapacity() {
         DataBuffer.enableMaxCapacity = false;
+        print("disableDataBufferMaxCapacity() DataBuffer.enableMaxCapacity = \(DataBuffer.enableMaxCapacity)");
+    }
+    
+    public func getDataBufferDefaultMaxCapacity() -> Int {
+        return DataBuffer.defaultMaxCapacity;
+    }
+    
+    public func getDataBufferMaxCapacity() -> Int {
+        return DataBuffer.maxAllowedCapacity;
     }
 
     /// Stop recording.
