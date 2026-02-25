@@ -6,7 +6,6 @@ final class DataBuffer {
         let totalRAM = ProcessInfo.processInfo.physicalMemory
         let proposed = Int(Double(totalRAM) * 0.05)
         var maxCapacity: Int = min(max(proposed, 30_000_000), 250_000_000);
-        print("DataBuffer defaultMaxCapacity = \(defaultMaxCapacity)");
         return maxCapacity;
     }()
 
