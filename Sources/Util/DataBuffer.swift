@@ -76,13 +76,14 @@ final class DataBuffer {
     }
 
     private func resize(_ data: Data) -> Bool {
-        let wouldBeNewCapacity = capacity + baseCapacity
-                if (DataBuffer.enableMaxCapacity && (wouldBeNewCapacity > maxAllowedCapacity)) {
-                    // Buffer has reached hard limit → cannot add more
-                    // You can optionally log here:
-                    // logger.warning("Buffer at hard limit \(capacity / 1_000_000) MB – dropping \(data.count) bytes")
-                    return false
-                }
+        let wouldBeNewCapacity = capacity + baseCapacity;
+
+        if (DataBuffer.enableMaxCapacity && (wouldBeNewCapacity > maxAllowedCapacity)) {
+            // Buffer has reached hard limit → cannot add more
+            // You can optionally log here:
+            // logger.warning("Buffer at hard limit \(capacity / 1_000_000) MB – dropping \(data.count) bytes")
+            return false;
+        }
         
         if 0 < head {
             let subdata = self.data.subdata(in: 0..<tail)
