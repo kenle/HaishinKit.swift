@@ -5,6 +5,7 @@ final class DataBuffer {
     public static let defaultMaxCapacity: Int = {
         let totalRAM = ProcessInfo.processInfo.physicalMemory
         let proposed = Int(Double(totalRAM) * 0.05)
+        // TODO: consider increasing 250_000_000 higher to 300_000_000 in next revision
         var maxCapacity: Int = min(max(proposed, 30_000_000), 250_000_000);
         return maxCapacity;
     }()
@@ -21,7 +22,7 @@ final class DataBuffer {
         maxAllowedCapacity = defaultMaxCapacity
     }
     
-    //static var maxAllowedCapacity: Int = 30 * 1_000_000;
+    // TODO: consider having enableMaxCapacity as false as default in next revision
     static var enableMaxCapacity = true;
     
     var bytes: UnsafePointer<UInt8>? {
